@@ -97,12 +97,14 @@ The system automatically detects and animates all paths in any SVG file, making 
 
 ## ToDo
 
-* ✅ ability to insert a pause into the SVG file, probably an xml comment which is interpretted by the animation as a pause
-
-* ✅ ability to insert main speed hints, again probably xml comments again probably xml comments, which allow a specific part of the diagram to be sped up or slowed down.
-
-* ability to set a viewport to naviagate to, again probably xml comments again probably xml comments
+* ability to set a viewport to smoothly navigate to, again probably xml comments
 
 * investigate how hard it would be to add a page to actually draw the diagrams with a drawing tablet and simple tool pallet
 
 * undo/redo buffer
+
+* New diagram button
+
+* Keyboard bindings
+
+* tablet support

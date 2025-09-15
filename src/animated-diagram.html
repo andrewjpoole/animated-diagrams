@@ -32,6 +32,17 @@
             </div>
             
             <div class="control-group">
+                <label>View Controls:</label>
+                <div class="control-inputs zoom-controls">
+                    <button id="zoomInBtn" class="btn-secondary" title="Zoom In">🔍+</button>
+                    <button id="zoomOutBtn" class="btn-secondary" title="Zoom Out">🔍−</button>
+                    <button id="zoomFitBtn" class="btn-secondary" title="Zoom to Fit">📐</button>
+                    <button id="resetViewBtn" class="btn-secondary" title="Reset View">🏠</button>
+                    <span id="zoomLevel" class="zoom-indicator">100%</span>
+                </div>
+            </div>
+            
+            <div class="control-group">
                 <label for="speed">Base Speed (ms per 100 units):</label>
                 <div class="control-inputs">
                     <input type="range" id="speed" min="50" max="2000" value="500" step="50">
@@ -56,7 +67,7 @@
             <div class="rules-section">
                 <div class="rules-header">
                     <h3>Style Override Rules</h3>
-                    <button class="rules-toggle" id="rulesToggle">Show Rules</button>
+                    <button class="rules-toggle" id="rulesToggle">Show</button>
                 </div>
                 <div class="rules-content" id="rulesContent">
                     <div id="rulesList"></div>
@@ -73,7 +84,7 @@
             <div class="path-editor-section">
                 <div class="path-editor-header">
                     <h3>Path Editor</h3>
-                    <button class="path-editor-toggle" id="pathEditorToggle">Show Editor</button>
+                    <button class="path-editor-toggle" id="pathEditorToggle">Show</button>
                 </div>
                 <div class="path-editor-content" id="pathEditorContent">
                     <div class="path-editor-layout">
@@ -120,44 +131,49 @@
             </div>
             
             <div class="recording-section">
-                <h3>Video Recording</h3>
-                <div class="recording-controls-compact">
-                    <div class="compact-row">
-                        <label>FPS:</label>
-                        <select id="recordFrameRate">
-                            <option value="24">24</option>
-                            <option value="30" selected>30</option>
-                            <option value="60">60</option>
-                        </select>
-                        <label>Res:</label>
-                        <select id="recordResolution">
-                            <option value="720p">720p (1280x720)</option>
-                            <option value="1080p" selected>1080p (1920x1080)</option>
-                            <option value="1440p">1440p (2560x1440)</option>
-                            <option value="4k">4K (3840x2160)</option>
-                        </select>
-                    </div>
-                    <div class="compact-row">
-                        <label>Quality:</label>
-                        <select id="recordBitrate">
-                            <option value="5">5 Mbps</option>
-                            <option value="15">15 Mbps</option>
-                            <option value="25" selected>25 Mbps</option>
-                            <option value="40">40 Mbps</option>
-                        </select>
-                    </div>
-                    <div class="compact-row">
-                        <label>Pause at end:</label>
-                        <input type="number" id="recordEndPauseValue" min="0" max="3000" value="500" step="100" style="width: 60px;">
-                        <span style="font-size: 11px;">ms</span>
-                    </div>
-                    <div class="compact-row">
-                        <label>Show complete SVG at start:</label>
-                        <input type="checkbox" id="recordShowCompleteStart" checked>
-                        <label style="font-size: 11px; min-width: auto; margin-left: 5px;">200ms preview</label>
-                    </div>
+                <div class="recording-header">
+                    <h3>Video Recording</h3>
+                    <button class="recording-toggle" id="recordingToggle">Show</button>
                 </div>
-                <button id="recordBtn" class="btn-record">🎥 Record Video</button>
+                <div class="recording-content" id="recordingContent">
+                    <div class="recording-controls-compact">
+                        <div class="compact-row">
+                            <label>FPS:</label>
+                            <select id="recordFrameRate">
+                                <option value="24">24</option>
+                                <option value="30" selected>30</option>
+                                <option value="60">60</option>
+                            </select>
+                            <label>Res:</label>
+                            <select id="recordResolution">
+                                <option value="720p">720p (1280x720)</option>
+                                <option value="1080p" selected>1080p (1920x1080)</option>
+                                <option value="1440p">1440p (2560x1440)</option>
+                                <option value="4k">4K (3840x2160)</option>
+                            </select>
+                        </div>
+                        <div class="compact-row">
+                            <label>Quality:</label>
+                            <select id="recordBitrate">
+                                <option value="5">5 Mbps</option>
+                                <option value="15">15 Mbps</option>
+                                <option value="25" selected>25 Mbps</option>
+                                <option value="40">40 Mbps</option>
+                            </select>
+                        </div>
+                        <div class="compact-row">
+                            <label>Pause at end:</label>
+                            <input type="number" id="recordEndPauseValue" min="0" max="3000" value="500" step="100" style="width: 60px;">
+                            <span style="font-size: 11px;">ms</span>
+                        </div>
+                        <div class="compact-row">
+                            <label>Show complete SVG at start:</label>
+                            <input type="checkbox" id="recordShowCompleteStart" checked>
+                            <label style="font-size: 11px; min-width: auto; margin-left: 5px;">200ms preview</label>
+                        </div>
+                    </div>
+                    <button id="recordBtn" class="btn-record">🎥 Record Video</button>
+                </div>
             </div>
             
             <div class="progress-info">
@@ -203,17 +219,7 @@
             hamburgerBtn.addEventListener('click', openPanel);
             closePanelBtn.addEventListener('click', closePanel);
             
-            // Close panel when clicking outside of it (but not on SVG elements)
-            document.addEventListener('click', (e) => {
-                if (controlsPanel.classList.contains('open') && 
-                    !controlsPanel.contains(e.target) && 
-                    !hamburgerBtn.contains(e.target) &&
-                    !e.target.closest('#animated-svg')) {
-                    closePanel();
-                }
-            });
-            
-            // Close panel on Escape key
+            // Close panel on Escape key only
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape' && controlsPanel.classList.contains('open')) {
                     closePanel();
@@ -250,19 +256,28 @@
         
         function initializeRulesUI() {
             // Toggle rules section
-            document.getElementById('rulesToggle').addEventListener('click', () => {
-                const content = document.getElementById('rulesContent');
-                const toggle = document.getElementById('rulesToggle');
+            // Unified collapsible section management
+            function setupCollapsibleSection(toggleId, contentId) {
+                const toggle = document.getElementById(toggleId);
+                const content = document.getElementById(contentId);
                 
-                if (content.classList.contains('show')) {
-                    content.classList.remove('show');
-                    toggle.textContent = 'Show Rules';
-                } else {
-                    content.classList.add('show');
-                    toggle.textContent = 'Hide Rules';
-                }
-            });
-            
+                if (!toggle || !content) return;
+                
+                toggle.addEventListener('click', () => {
+                    if (content.classList.contains('show')) {
+                        content.classList.remove('show');
+                        toggle.textContent = 'Show';
+                    } else {
+                        content.classList.add('show');
+                        toggle.textContent = 'Hide';
+                    }
+                });
+            }
+
+            // Setup all collapsible sections
+            setupCollapsibleSection('rulesToggle', 'rulesContent');
+            setupCollapsibleSection('recordingToggle', 'recordingContent');
+
             // Add new rule
             document.getElementById('addRuleBtn').addEventListener('click', () => {
                 addRule();
@@ -1201,6 +1216,12 @@
             initializeHamburgerMenu();
             initializeRulesUI();
             initializeRecordingControls();
+            initializeZoomControls();
+            
+            // Initialize SVG pan and zoom after SVGAnimator is ready
+            setTimeout(() => {
+                initializeSVGPanZoom();
+            }, 1500); // Increased delay to ensure SVG is loaded
             
             // Ensure rules are applied after SVGAnimator is initialized
             setTimeout(() => {
@@ -1216,6 +1237,276 @@
                 }
             }, 1000);
         });
+        
+        // Initialize zoom control buttons
+        function initializeZoomControls() {
+            const zoomInBtn = document.getElementById('zoomInBtn');
+            const zoomOutBtn = document.getElementById('zoomOutBtn');
+            const zoomFitBtn = document.getElementById('zoomFitBtn');
+            const resetViewBtn = document.getElementById('resetViewBtn');
+            const zoomLevel = document.getElementById('zoomLevel');
+            
+            if (zoomInBtn) {
+                zoomInBtn.addEventListener('click', () => {
+                    if (window.zoomIn) {
+                        window.zoomIn();
+                        updateZoomIndicator();
+                    }
+                });
+            }
+            
+            if (zoomOutBtn) {
+                zoomOutBtn.addEventListener('click', () => {
+                    if (window.zoomOut) {
+                        window.zoomOut();
+                        updateZoomIndicator();
+                    }
+                });
+            }
+            
+            if (zoomFitBtn) {
+                zoomFitBtn.addEventListener('click', () => {
+                    if (window.zoomToFit) {
+                        window.zoomToFit();
+                        updateZoomIndicator();
+                    }
+                });
+            }
+            
+            if (resetViewBtn) {
+                resetViewBtn.addEventListener('click', () => {
+                    if (window.resetSVGView) {
+                        window.resetSVGView();
+                        updateZoomIndicator();
+                    }
+                });
+            }
+            
+            function updateZoomIndicator() {
+                // We'll need to expose the current scale value
+                if (window.getCurrentScale && zoomLevel) {
+                    const scale = window.getCurrentScale();
+                    zoomLevel.textContent = Math.round(scale * 100) + '%';
+                }
+            }
+            
+            // Update indicator initially
+            setTimeout(updateZoomIndicator, 100);
+        }
+        
+        // SVG Pan and Zoom functionality
+        function initializeSVGPanZoom() {
+            console.log('Initializing SVG pan and zoom...');
+            
+            const svgContainer = document.querySelector('.svg-container');
+            const svgElement = document.getElementById('animated-svg');
+            
+            console.log('SVG Container:', svgContainer);
+            console.log('SVG Element:', svgElement);
+            
+            if (!svgContainer) {
+                console.warn('SVG container not found, retrying in 500ms...');
+                setTimeout(initializeSVGPanZoom, 500);
+                return;
+            }
+            
+            if (!svgElement) {
+                console.warn('SVG element not found, retrying in 500ms...');
+                setTimeout(initializeSVGPanZoom, 500);
+                return;
+            }
+            
+            console.log('Both elements found, setting up pan and zoom...');
+            
+            let scale = 1;
+            let panX = 0;
+            let panY = 0;
+            let isPanning = false;
+            let startPanX = 0;
+            let startPanY = 0;
+            let startMouseX = 0;
+            let startMouseY = 0;
+            
+            // Apply transform to SVG
+            function updateTransform() {
+                const transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+                svgElement.style.transform = transform;
+                svgElement.style.transformOrigin = '0 0'; // Set origin to top-left
+                console.log('Transform applied:', transform);
+                
+                // Update zoom indicator if it exists
+                const zoomLevel = document.getElementById('zoomLevel');
+                if (zoomLevel) {
+                    zoomLevel.textContent = Math.round(scale * 100) + '%';
+                }
+            }
+            
+            // Expose current scale for external use
+            window.getCurrentScale = () => scale;
+            
+            // Test the transform immediately
+            console.log('Testing initial transform...');
+            updateTransform();
+            console.log('Testing initial transform...');
+            updateTransform();
+            
+            // Mouse wheel zoom
+            svgContainer.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                
+                // Get mouse position relative to the SVG element itself, not the container
+                const svgRect = svgElement.getBoundingClientRect();
+                const mouseX = e.clientX - svgRect.left;
+                const mouseY = e.clientY - svgRect.top;
+                
+                // Store the current scale before changing it
+                const oldScale = scale;
+                
+                // Update scale
+                const zoomSpeed = 0.15;
+                const deltaY = e.deltaY;
+                
+                if (deltaY < 0) {
+                    scale = Math.min(scale * (1 + zoomSpeed), 5); // Max zoom 5x
+                } else {
+                    scale = Math.max(scale * (1 - zoomSpeed), 0.1); // Min zoom 0.1x
+                }
+                
+                // Calculate the scale factor
+                const scaleFactor = scale / oldScale;
+                
+                // Adjust pan to keep the mouse point fixed
+                // The formula: new_pan = mouse_pos - scale_factor * (mouse_pos - old_pan)
+                panX = mouseX - scaleFactor * (mouseX - panX);
+                panY = mouseY - scaleFactor * (mouseY - panY);
+                
+                updateTransform();
+            });
+            
+            // Simplified mouse pan (drag) - start with basic functionality
+            svgContainer.addEventListener('mousedown', (e) => {
+                console.log('Mouse down on:', e.target, 'button:', e.button);
+                
+                // For now, let's just allow panning with left mouse button on any part
+                if (e.button === 0) { // Left mouse button
+                    isPanning = true;
+                    startPanX = panX;
+                    startPanY = panY;
+                    startMouseX = e.clientX;
+                    startMouseY = e.clientY;
+                    
+                    // Set cursor on the container, not the document
+                    svgContainer.style.cursor = 'grabbing';
+                    console.log('Started panning from:', startMouseX, startMouseY);
+                    e.preventDefault();
+                }
+            });
+            
+            // Use document-level mousemove to track movement even outside container
+            document.addEventListener('mousemove', (e) => {
+                if (isPanning) {
+                    const deltaX = e.clientX - startMouseX;
+                    const deltaY = e.clientY - startMouseY;
+                    
+                    panX = startPanX + deltaX;
+                    panY = startPanY + deltaY;
+                    
+                    console.log('Panning to:', panX, panY);
+                    updateTransform();
+                    e.preventDefault();
+                }
+            });
+            
+            // Handle mouse up on document to catch releases outside container
+            document.addEventListener('mouseup', (e) => {
+                if (isPanning) {
+                    console.log('Stopped panning');
+                    isPanning = false;
+                    svgContainer.style.cursor = 'grab';
+                }
+            });
+            
+            // Handle mouse enter/leave for cursor management
+            svgContainer.addEventListener('mouseenter', (e) => {
+                if (!isPanning) {
+                    svgContainer.style.cursor = 'grab';
+                }
+            });
+            
+            svgContainer.addEventListener('mouseleave', (e) => {
+                if (!isPanning) {
+                    svgContainer.style.cursor = 'default';
+                }
+            });
+            
+            // Double-click to reset view
+            svgContainer.addEventListener('dblclick', (e) => {
+                console.log('Double-click reset');
+                scale = 1;
+                panX = 0;
+                panY = 0;
+                updateTransform();
+                e.preventDefault();
+            });
+            
+            // Expose zoom/pan functions globally for controls
+            window.resetSVGView = () => {
+                console.log('Manual reset called');
+                scale = 1;
+                panX = 0;
+                panY = 0;
+                updateTransform();
+            };
+            
+            window.zoomIn = () => {
+                const centerX = svgContainer.clientWidth / 2;
+                const centerY = svgContainer.clientHeight / 2;
+                const pointInSVGX = (centerX - panX) / scale;
+                const pointInSVGY = (centerY - panY) / scale;
+                
+                scale = Math.min(scale * 1.2, 5);
+                panX = centerX - pointInSVGX * scale;
+                panY = centerY - pointInSVGY * scale;
+                updateTransform();
+            };
+            
+            window.zoomOut = () => {
+                const centerX = svgContainer.clientWidth / 2;
+                const centerY = svgContainer.clientHeight / 2;
+                const pointInSVGX = (centerX - panX) / scale;
+                const pointInSVGY = (centerY - panY) / scale;
+                
+                scale = Math.max(scale / 1.2, 0.1);
+                panX = centerX - pointInSVGX * scale;
+                panY = centerY - pointInSVGY * scale;
+                updateTransform();
+            };
+            
+            window.zoomToFit = () => {
+                if (!svgElement) return;
+                
+                // Get SVG viewBox or use width/height
+                const viewBox = svgElement.viewBox.baseVal;
+                const svgWidth = viewBox.width || parseFloat(svgElement.getAttribute('width')) || 800;
+                const svgHeight = viewBox.height || parseFloat(svgElement.getAttribute('height')) || 600;
+                
+                const containerWidth = svgContainer.clientWidth;
+                const containerHeight = svgContainer.clientHeight;
+                
+                // Calculate scale to fit with some padding
+                const scaleX = (containerWidth * 0.9) / svgWidth;
+                const scaleY = (containerHeight * 0.9) / svgHeight;
+                scale = Math.min(scaleX, scaleY, 5); // Don't exceed max zoom
+                
+                // Center the SVG
+                panX = (containerWidth - svgWidth * scale) / 2;
+                panY = (containerHeight - svgHeight * scale) / 2;
+                
+                updateTransform();
+            };
+            
+            console.log('SVG pan and zoom initialization complete');
+        }
         
         function initializeRecordingControls() {
             // Validate the end pause number input

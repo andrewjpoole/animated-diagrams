@@ -3,6 +3,11 @@
    ===================================== */
 
 /* Base Styles */
+html {
+    height: 100%;
+    overflow: hidden;
+}
+
 body {
     margin: 0;
     padding: 10px;
@@ -11,6 +16,7 @@ body {
     height: 100vh;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 h1 {
@@ -31,7 +37,7 @@ h1 {
     box-shadow: none;
     display: flex;
     flex-direction: row;
-    height: 100vh;
+    height: calc(100vh - 20px);
     overflow: hidden;
     position: relative;
 }
@@ -316,6 +322,26 @@ button:focus {
     min-height: 40px;
 }
 
+/* Zoom Controls */
+.zoom-controls {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.zoom-indicator {
+    font-size: 10px;
+    color: #666;
+    margin-left: 8px;
+    min-width: 35px;
+    text-align: center;
+    background: #f8f9fa;
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid #dee2e6;
+}
+
 /* Special Button Types */
 .btn-record {
     background-color: #dc3545;
@@ -408,10 +434,89 @@ button:focus {
     border: 1px solid #dee2e6;
 }
 
-.recording-section h3 {
-    margin: 0 0 15px 0;
-    color: #333;
+.recording-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 15px;
+}
+
+.recording-header h3 {
+    margin: 0;
     font-size: 16px;
+    color: #333;
+}
+
+.recording-toggle {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.recording-toggle:hover {
+    background: #0056b3;
+}
+
+/* =====================================
+   Collapsible Content System
+   ===================================== */
+
+.collapsible-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+    opacity: 0;
+}
+
+.collapsible-content.show {
+    max-height: 2000px; /* Generous max height for content */
+    opacity: 1;
+    transition: max-height 0.3s ease-in, opacity 0.3s ease-in;
+}
+
+/* Legacy support - redirect old classes to new system */
+.recording-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+    opacity: 0;
+}
+
+.recording-content.show {
+    max-height: 2000px;
+    opacity: 1;
+    transition: max-height 0.3s ease-in, opacity 0.3s ease-in;
+}
+
+.rules-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+    opacity: 0;
+}
+
+.rules-content.show {
+    max-height: 2000px;
+    opacity: 1;
+    transition: max-height 0.3s ease-in, opacity 0.3s ease-in;
+}
+
+.path-editor-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+    opacity: 0;
+}
+
+.path-editor-content.show {
+    max-height: 2000px;
+    opacity: 1;
+    transition: max-height 0.3s ease-in, opacity 0.3s ease-in;
 }
 
 .recording-controls-compact {
@@ -498,14 +603,6 @@ button:focus {
 
 .rules-toggle:hover {
     background: #0056b3;
-}
-
-.rules-content {
-    display: none;
-}
-
-.rules-content.show {
-    display: block;
 }
 
 /* Rule Items */
@@ -860,15 +957,6 @@ button:focus {
     background: #0056b3;
 }
 
-.path-editor-content {
-    display: none;
-    animation: slideDown 0.3s ease;
-}
-
-.path-editor-content.show {
-    display: block;
-}
-
 .path-editor-layout {
     display: flex;
     gap: 15px;
@@ -1133,18 +1221,28 @@ button:focus {
     border-radius: 5px;
     background: white;
     flex: 1;
-    overflow: auto;
+    overflow: hidden; /* Changed from auto to hidden for pan/zoom */
     display: flex;
     justify-content: center;
     align-items: center;
     min-height: 0;
+    position: relative; /* Added for proper positioning */
+    user-select: none; /* Prevent text selection during pan */
+    cursor: grab; /* Default cursor for panning */
+}
+
+.svg-container:active {
+    cursor: grabbing; /* Cursor when actively dragging */
 }
 
 .svg-container svg {
-    max-width: 100%;
-    max-height: 100%;
+    max-width: none; /* Allow SVG to grow beyond container for zoom */
+    max-height: none; /* Allow SVG to grow beyond container for zoom */
     width: auto;
     height: auto;
+    transform-origin: 0 0; /* Set transform origin for scaling */
+    transition: none; /* Disable transitions for smooth panning */
+    pointer-events: auto; /* Ensure SVG elements can still be clicked */
 }
 
 .progress-info {

@@ -1503,8 +1503,8 @@ class SVGAnimator {
             const pathEditorContent = document.getElementById('pathEditorContent');
             
             this.pathEditorVisible = true;
-            pathEditorToggle.textContent = '📂 Hide Path Editor';
-            pathEditorContent.style.display = 'block';
+            pathEditorToggle.textContent = 'Hide';
+            pathEditorContent.classList.add('show');
             this.refreshPathList();
         }
         
@@ -1537,11 +1537,11 @@ class SVGAnimator {
             this.pathEditorVisible = !this.pathEditorVisible;
             if (this.pathEditorVisible) {
                 pathEditorContent.classList.add('show');
-                pathEditorToggle.textContent = 'Hide Editor';
+                pathEditorToggle.textContent = 'Hide';
                 this.refreshPathList();
             } else {
                 pathEditorContent.classList.remove('show');
-                pathEditorToggle.textContent = 'Show Editor';
+                pathEditorToggle.textContent = 'Show';
                 this.clearPathSelection();
             }
         });

@@ -26,6 +26,7 @@
                     <select id="svgFile">
                         <option value="aspire-wire-up.svg">Loading...</option>
                     </select>
+                    <button id="newSvgBtn" class="btn-secondary">New</button>
                     <button id="browseSvgBtn" class="btn-secondary">Browse...</button>
                     <input type="file" id="svgFileInput" accept=".svg" style="display: none;">
                 </div>
@@ -39,6 +40,24 @@
                     <button id="zoomFitBtn" class="btn-secondary" title="Zoom to Fit">📐</button>
                     <button id="resetViewBtn" class="btn-secondary" title="Reset View">🏠</button>
                     <span id="zoomLevel" class="zoom-indicator">100%</span>
+                    <div class="tool-mode-divider"></div>
+                    <button id="selectModeBtn" class="btn-secondary mode-btn active" title="Select/Pan/Zoom Mode">📍 Select</button>
+                    <button id="penModeBtn" class="btn-secondary mode-btn" title="Drawing Mode">
+                        <span class="pen-indicator" id="penIndicator"></span>
+                        ✏️ <span id="penModeText">Pen 1</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="pens-section">
+                <div class="pens-header">
+                    <h3>Drawing Pens</h3>
+                    <button class="pens-toggle" id="pensToggle">Show</button>
+                </div>
+                <div class="pens-content" id="pensContent">
+                    <div class="pen-configs">
+                        <!-- Pen configurations will be dynamically generated here -->
+                    </div>
                 </div>
             </div>
             
@@ -204,13 +223,27 @@
             const closePanelBtn = document.getElementById('closePanelBtn');
             const svgSection = document.getElementById('svgSection');
             
+            console.log('Hamburger menu elements:', {
+                hamburgerBtn: !!hamburgerBtn,
+                controlsPanel: !!controlsPanel,
+                closePanelBtn: !!closePanelBtn,
+                svgSection: !!svgSection
+            });
+            
+            if (!hamburgerBtn || !controlsPanel || !closePanelBtn || !svgSection) {
+                console.error('Missing hamburger menu elements');
+                return;
+            }
+            
             function openPanel() {
+                console.log('Opening panel');
                 controlsPanel.classList.add('open');
                 svgSection.classList.add('panel-open');
                 hamburgerBtn.classList.add('hidden');
             }
             
             function closePanel() {
+                console.log('Closing panel');
                 controlsPanel.classList.remove('open');
                 svgSection.classList.remove('panel-open');
                 hamburgerBtn.classList.remove('hidden');
@@ -219,10 +252,14 @@
             hamburgerBtn.addEventListener('click', openPanel);
             closePanelBtn.addEventListener('click', closePanel);
             
-            // Close panel on Escape key only
+            // Toggle panel on Escape key
             document.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape' && controlsPanel.classList.contains('open')) {
-                    closePanel();
+                if (e.key === 'Escape') {
+                    if (controlsPanel.classList.contains('open')) {
+                        closePanel();
+                    } else {
+                        openPanel();
+                    }
                 }
             });
         }
@@ -277,6 +314,7 @@
             // Setup all collapsible sections
             setupCollapsibleSection('rulesToggle', 'rulesContent');
             setupCollapsibleSection('recordingToggle', 'recordingContent');
+            setupCollapsibleSection('pensToggle', 'pensContent');
 
             // Add new rule
             document.getElementById('addRuleBtn').addEventListener('click', () => {
@@ -1221,6 +1259,8 @@
             // Initialize SVG pan and zoom after SVGAnimator is ready
             setTimeout(() => {
                 initializeSVGPanZoom();
+                // Initialize drawing tools after SVG pan/zoom is set up
+                initializeDrawingTools();
             }, 1500); // Increased delay to ensure SVG is loaded
             
             // Ensure rules are applied after SVGAnimator is initialized
@@ -1294,12 +1334,603 @@
             setTimeout(updateZoomIndicator, 100);
         }
         
+        // Global SVG variables accessible to both pan/zoom and drawing systems
+        let svgElement = null;
+        let svgContainer = null;
+        let scale = 1;
+        let panX = 0;
+        let panY = 0;
+        let isPanning = false;
+        let startPanX = 0;
+        let startPanY = 0;
+        let startMouseX = 0;
+        let startMouseY = 0;
+        
+        // =====================================
+        // Drawing Tools System
+        // =====================================
+        function initializeDrawingTools() {
+            console.log('Initializing drawing tools...');
+            let currentMode = 'select'; // 'select' or 'pen'
+            let isDrawing = false;
+            let currentPath = null;
+            let pathData = '';
+            let points = []; // Store points for smoothing
+            
+            // Get SVG element references
+            svgElement = document.getElementById('animated-svg');
+            svgContainer = document.querySelector('.svg-container');
+            
+            console.log('Drawing tools - SVG Element:', svgElement);
+            console.log('Drawing tools - SVG Container:', svgContainer);
+            
+            if (!svgElement) {
+                console.error('SVG element not found for drawing tools');
+                return;
+            }
+            
+            if (!svgContainer) {
+                console.error('SVG container not found for drawing tools');
+                return;
+            }
+            
+            // Pen management system
+            let penConfigs = {};
+            let currentPen = 1;
+            const PEN_STORAGE_KEY = 'svg-animation-pens';
+            
+            // Default pen configurations
+            const defaultPens = {
+                1: { color: '#000000', width: 2, opacity: 1, name: 'Black Pen' },
+                2: { color: '#ff0000', width: 3, opacity: 0.8, name: 'Red Pen' },
+                3: { color: '#0066cc', width: 5, opacity: 0.6, name: 'Blue Pen' }
+            };
+            
+            function loadPensFromStorage() {
+                try {
+                    const stored = localStorage.getItem(PEN_STORAGE_KEY);
+                    if (stored) {
+                        penConfigs = JSON.parse(stored);
+                        console.log('Loaded pens from storage:', penConfigs);
+                        return penConfigs;
+                    }
+                } catch (error) {
+                    console.warn('Failed to load pens from storage:', error);
+                }
+                
+                // Use defaults if no storage or error
+                penConfigs = { ...defaultPens };
+                return penConfigs;
+            }
+            
+            function savePensToStorage() {
+                try {
+                    localStorage.setItem(PEN_STORAGE_KEY, JSON.stringify(penConfigs));
+                    console.log('Saved pens to storage:', penConfigs);
+                } catch (error) {
+                    console.warn('Failed to save pens to storage:', error);
+                }
+            }
+            
+            function addPen() {
+                const newPenId = Math.max(...Object.keys(penConfigs).map(Number)) + 1;
+                const newPen = {
+                    color: '#000000',
+                    width: 2,
+                    opacity: 1,
+                    name: `Pen ${newPenId}`
+                };
+                
+                penConfigs[newPenId] = newPen;
+                renderPenConfigs();
+                savePensToStorage();
+                
+                console.log('Added new pen:', newPenId, newPen);
+                return newPenId;
+            }
+            
+            function removePen(penId) {
+                if (Object.keys(penConfigs).length <= 1) {
+                    alert('Cannot remove the last pen. At least one pen must remain.');
+                    return;
+                }
+                
+                const penIdNum = parseInt(penId);
+                if (penConfigs[penIdNum]) {
+                    delete penConfigs[penIdNum];
+                    
+                    // If we deleted the current pen, switch to the first available pen
+                    if (currentPen === penIdNum) {
+                        currentPen = parseInt(Object.keys(penConfigs)[0]);
+                        updatePenModeDisplay();
+                    }
+                    
+                    renderPenConfigs();
+                    savePensToStorage();
+                    console.log('Removed pen:', penId);
+                }
+            }
+            
+            function updatePenConfig(penId, property, value) {
+                const penIdNum = parseInt(penId);
+                if (penConfigs[penIdNum]) {
+                    penConfigs[penIdNum][property] = value;
+                    savePensToStorage();
+                    updatePenIndicator(); // Update visual indicator when pen changes
+                }
+            }
+            
+            function updatePenModeDisplay() {
+                const penModeText = document.getElementById('penModeText');
+                if (penModeText && penConfigs[currentPen]) {
+                    penModeText.textContent = penConfigs[currentPen].name || `Pen ${currentPen}`;
+                }
+                updatePenIndicator();
+            }
+            
+            function updatePenIndicator() {
+                const penIndicator = document.getElementById('penIndicator');
+                if (penIndicator && penConfigs[currentPen]) {
+                    const config = penConfigs[currentPen];
+                    penIndicator.style.backgroundColor = config.color;
+                    penIndicator.style.width = `${Math.min(config.width * 2, 20)}px`;
+                    penIndicator.style.height = `${Math.min(config.width * 2, 20)}px`;
+                    penIndicator.style.opacity = config.opacity;
+                    penIndicator.title = `${config.name}: ${config.color}, ${config.width}px, ${Math.round(config.opacity * 100)}%`;
+                }
+            }
+            
+            // Load pens on startup
+            loadPensFromStorage();
+            
+            function renderPenConfigs() {
+                const pensContainer = document.querySelector('.pen-configs');
+                if (!pensContainer) return;
+                
+                pensContainer.innerHTML = '';
+                
+                Object.keys(penConfigs).sort((a, b) => Number(a) - Number(b)).forEach(penId => {
+                    const config = penConfigs[penId];
+                    const penDiv = document.createElement('div');
+                    penDiv.className = 'pen-config';
+                    penDiv.dataset.pen = penId;
+                    
+                    penDiv.innerHTML = `
+                        <div class="pen-config-header">
+                            <input type="text" class="pen-name-input" value="${config.name || `Pen ${penId}`}" placeholder="Pen name" data-pen="${penId}">
+                            <button class="remove-pen-btn" onclick="removePen('${penId}')">×</button>
+                        </div>
+                        <div class="pen-controls">
+                            <div class="pen-control-row">
+                                <label>Color:</label>
+                                <input type="color" id="pen${penId}Color" value="${config.color}">
+                            </div>
+                            <div class="pen-control-row">
+                                <label>Width:</label>
+                                <input type="range" id="pen${penId}Width" min="1" max="20" value="${config.width}" step="0.5">
+                                <span class="width-value">${config.width}px</span>
+                            </div>
+                            <div class="pen-control-row">
+                                <label>Opacity:</label>
+                                <input type="range" id="pen${penId}Opacity" min="0" max="1" value="${config.opacity}" step="0.1">
+                                <span class="opacity-value">${Math.round(config.opacity * 100)}%</span>
+                            </div>
+                        </div>
+                    `;
+                    
+                    pensContainer.appendChild(penDiv);
+                    
+                    // Add event listeners for this pen
+                    const colorInput = document.getElementById(`pen${penId}Color`);
+                    const widthInput = document.getElementById(`pen${penId}Width`);
+                    const opacityInput = document.getElementById(`pen${penId}Opacity`);
+                    const widthValue = penDiv.querySelector('.width-value');
+                    const opacityValue = penDiv.querySelector('.opacity-value');
+                    const nameInput = penDiv.querySelector('.pen-name-input');
+                    
+                    colorInput.addEventListener('change', (e) => {
+                        updatePenConfig(penId, 'color', e.target.value);
+                    });
+                    
+                    widthInput.addEventListener('input', (e) => {
+                        updatePenConfig(penId, 'width', parseFloat(e.target.value));
+                        widthValue.textContent = e.target.value + 'px';
+                    });
+                    
+                    opacityInput.addEventListener('input', (e) => {
+                        updatePenConfig(penId, 'opacity', parseFloat(e.target.value));
+                        opacityValue.textContent = Math.round(e.target.value * 100) + '%';
+                    });
+                    
+                    nameInput.addEventListener('input', (e) => {
+                        const newName = e.target.value.trim();
+                        if (newName) {
+                            updatePenConfig(penId, 'name', newName);
+                            updatePenModeDisplay(); // Update button if this is current pen
+                        }
+                    });
+                    
+                    nameInput.addEventListener('blur', (e) => {
+                        const newName = e.target.value.trim();
+                        if (newName) {
+                            updatePenConfig(penId, 'name', newName);
+                            updatePenModeDisplay(); // Update button if this is current pen
+                        }
+                    });
+                });
+                
+                // Add the "Add Pen" button at the bottom
+                const addPenBtn = document.createElement('button');
+                addPenBtn.className = 'add-pen-btn';
+                addPenBtn.textContent = '+ Add Pen';
+                addPenBtn.onclick = addPen;
+                pensContainer.appendChild(addPenBtn);
+            }
+            
+            // Mode switching
+            const selectModeBtn = document.getElementById('selectModeBtn');
+            const penModeBtn = document.getElementById('penModeBtn');
+            const penModeText = document.getElementById('penModeText');
+            
+            console.log('Drawing tools buttons found:');
+            console.log('- selectModeBtn:', selectModeBtn);
+            console.log('- penModeBtn:', penModeBtn);
+            console.log('- penModeText:', penModeText);
+            
+            if (!selectModeBtn || !penModeBtn || !penModeText) {
+                console.error('Some drawing tools buttons not found!');
+                return;
+            }
+            
+            function setMode(mode) {
+                console.log('Setting mode to:', mode);
+                currentMode = mode;
+                
+                if (mode === 'select') {
+                    selectModeBtn.classList.add('active');
+                    penModeBtn.classList.remove('active');
+                    if (!isPanning) {
+                        svgContainer.style.cursor = 'grab';
+                    }
+                } else if (mode === 'pen') {
+                    selectModeBtn.classList.remove('active');
+                    penModeBtn.classList.add('active');
+                    svgContainer.style.cursor = 'crosshair';
+                }
+                console.log('Mode set to:', currentMode);
+            }
+            
+            selectModeBtn.addEventListener('click', () => setMode('select'));
+            
+            penModeBtn.addEventListener('click', () => {
+                console.log('Pen button clicked, current mode:', currentMode);
+                if (currentMode === 'pen') {
+                    // Cycle to next pen
+                    const penIds = Object.keys(penConfigs).map(Number).sort((a, b) => a - b);
+                    const currentIndex = penIds.indexOf(currentPen);
+                    const nextIndex = (currentIndex + 1) % penIds.length;
+                    currentPen = penIds[nextIndex];
+                    updatePenModeDisplay();
+                    console.log('Switched to pen', currentPen);
+                } else {
+                    // Switch to pen mode
+                    setMode('pen');
+                    updatePenModeDisplay();
+                    console.log('Switched to pen mode with pen', currentPen);
+                }
+            });
+            
+            // Initialize pen configurations UI
+            renderPenConfigs();
+            
+            // Initialize pen mode display and indicator
+            updatePenModeDisplay();
+            
+            // Improved smooth path function for better handwriting continuity
+            function createSmoothPath(points) {
+                if (points.length < 2) return '';
+                if (points.length === 2) {
+                    return `M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y}`;
+                }
+                if (points.length === 3) {
+                    return `M ${points[0].x} ${points[0].y} Q ${points[1].x} ${points[1].y} ${points[2].x} ${points[2].y}`;
+                }
+                
+                let path = `M ${points[0].x} ${points[0].y}`;
+                
+                // Use continuous quadratic curves for smooth, flowing handwriting
+                for (let i = 1; i < points.length - 1; i++) {
+                    const curr = points[i];
+                    const next = points[i + 1];
+                    
+                    // Calculate smooth control point for continuous curves
+                    const controlX = curr.x;
+                    const controlY = curr.y;
+                    const endX = (curr.x + next.x) / 2;
+                    const endY = (curr.y + next.y) / 2;
+                    
+                    path += ` Q ${controlX} ${controlY} ${endX} ${endY}`;
+                }
+                
+                // Always end with the final point to ensure complete drawing
+                const lastPoint = points[points.length - 1];
+                path += ` T ${lastPoint.x} ${lastPoint.y}`;
+                
+                return path;
+            }
+            
+            // Drawing functionality
+            function startDrawing(e) {
+                if (currentMode !== 'pen') return;
+                
+                console.log('=== STARTING DRAWING ===');
+                e.preventDefault();
+                e.stopPropagation();
+                
+                isDrawing = true;
+                points = []; // Reset points array
+                
+                // Get SVG viewBox to calculate proper coordinates
+                const viewBox = svgElement.getAttribute('viewBox');
+                const [viewBoxX, viewBoxY, viewBoxWidth, viewBoxHeight] = viewBox ? 
+                    viewBox.split(' ').map(Number) : [0, 0, 100, 100];
+                
+                // Get coordinates relative to SVG element specifically
+                const svgRect = svgElement.getBoundingClientRect();
+                const relativeX = e.clientX - svgRect.left;
+                const relativeY = e.clientY - svgRect.top;
+                
+                // Convert to SVG coordinate system without clamping
+                const svgX = viewBoxX + (relativeX / svgRect.width) * viewBoxWidth;
+                const svgY = viewBoxY + (relativeY / svgRect.height) * viewBoxHeight;
+                
+                // Use unclamped coordinates for free drawing
+                const finalX = svgX;
+                const finalY = svgY;
+                
+                // Add first point
+                points.push({x: finalX, y: finalY});
+                
+                // Create new path element
+                currentPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                currentPath.setAttribute('fill', 'none');
+                currentPath.setAttribute('stroke', penConfigs[currentPen].color);
+                currentPath.setAttribute('stroke-width', penConfigs[currentPen].width);
+                currentPath.setAttribute('stroke-opacity', penConfigs[currentPen].opacity);
+                currentPath.setAttribute('stroke-linecap', 'round');
+                currentPath.setAttribute('stroke-linejoin', 'round');
+                currentPath.setAttribute('class', 'drawn-path'); // Keep visible after drawing
+                
+                // Start path data
+                pathData = `M ${finalX.toFixed(2)} ${finalY.toFixed(2)}`;
+                currentPath.setAttribute('d', pathData);
+                
+                // Add to SVG
+                svgElement.appendChild(currentPath);
+                console.log('Started drawing at coords:', finalX.toFixed(2), finalY.toFixed(2));
+            }
+            
+            function continueDrawing(e) {
+                if (!isDrawing || currentMode !== 'pen' || !currentPath) return;
+                
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // Get SVG viewBox for coordinate conversion
+                const viewBox = svgElement.getAttribute('viewBox');
+                const [viewBoxX, viewBoxY, viewBoxWidth, viewBoxHeight] = viewBox ? 
+                    viewBox.split(' ').map(Number) : [0, 0, 100, 100];
+                
+                // Get coordinates relative to SVG
+                const svgRect = svgElement.getBoundingClientRect();
+                const relativeX = e.clientX - svgRect.left;
+                const relativeY = e.clientY - svgRect.top;
+                
+                // Convert to SVG coordinate system without clamping
+                const svgX = viewBoxX + (relativeX / svgRect.width) * viewBoxWidth;
+                const svgY = viewBoxY + (relativeY / svgRect.height) * viewBoxHeight;
+                
+                // Use unclamped coordinates for free drawing
+                const newPoint = {x: svgX, y: svgY};
+                let shouldAddPoint = true;
+                
+                if (points.length > 0) {
+                    const lastPoint = points[points.length - 1];
+                    const distance = Math.sqrt(Math.pow(newPoint.x - lastPoint.x, 2) + Math.pow(newPoint.y - lastPoint.y, 2));
+                    
+                    // Reduce minimum distance to maintain fluidity
+                    if (distance < 4) {
+                        shouldAddPoint = false;
+                    }
+                }
+                
+                // Add point and update path more frequently for continuous flow
+                if (shouldAddPoint) {
+                    points.push(newPoint);
+                    
+                    // Update path every time for continuous drawing feel
+                    const smoothPath = createSmoothPath(points);
+                    currentPath.setAttribute('d', smoothPath);
+                }
+            }
+            
+            function stopDrawing(e) {
+                if (!isDrawing || currentMode !== 'pen') return;
+                
+                isDrawing = false;
+                console.log('=== STOPPING DRAWING ===');
+                
+                if (currentPath && points.length > 2) {
+                    // Generate final smooth path
+                    const finalPath = createSmoothPath(points);
+                    currentPath.setAttribute('d', finalPath);
+                    
+                    // Keep drawn-path class to remain visible
+                    // (will be removed when animation resets)
+                    
+                    // Generate unique ID for the path
+                    const pathId = 'drawn-path-' + Date.now();
+                    currentPath.setAttribute('id', pathId);
+                    console.log('Kept smooth path with ID:', pathId);
+                    
+                    // Expand SVG viewBox if needed to include the new drawing
+                    expandViewBoxToIncludePath(currentPath);
+                    
+                    // Add the new path to the SVG animator's tracking
+                    if (window.svgAnimator) {
+                        // Set up animation properties like other paths
+                        const pathLength = currentPath.getTotalLength();
+                        const strokeColor = currentPath.getAttribute('stroke') || '#000000';
+                        
+                        // Set up for animation (CSS will override for drawn-path visibility)
+                        currentPath.style.strokeDasharray = pathLength;
+                        currentPath.style.transition = 'none';
+                        currentPath.dataset.pathLength = pathLength;
+                        currentPath.dataset.strokeColor = strokeColor;
+                        currentPath.dataset.elementType = 'path';
+                        currentPath.dataset.isHandwriting = 'true';
+                        
+                        // Get the next element index
+                        const nextIndex = window.svgAnimator.allElements.length;
+                        currentPath.dataset.elementIndex = nextIndex;
+                        
+                        // Add click handler for path editor selection
+                        currentPath.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            window.svgAnimator.selectElementInPathEditor(nextIndex);
+                        });
+                        
+                        // Add to allElements array for path editor
+                        window.svgAnimator.allElements.push(currentPath);
+                        
+                        // Add to paths array for animation system
+                        window.svgAnimator.paths.push(currentPath);
+                        
+                        // Categorize the path as handwriting
+                        window.svgAnimator.handwritingPaths.push(currentPath);
+                        
+                        // Update the sorted paths array
+                        window.svgAnimator.sortedPaths = [...window.svgAnimator.allElements];
+                        
+                        // Update stats and refresh path editor if visible
+                        window.svgAnimator.updatePathStats();
+                        if (window.svgAnimator.pathEditorVisible) {
+                            window.svgAnimator.refreshPathList();
+                        }
+                    }
+                } else if (currentPath) {
+                    console.log('Removed short path');
+                    currentPath.remove();
+                }
+                
+                currentPath = null;
+                points = [];
+            }
+            
+            // Function to expand SVG viewBox to include new drawn content
+            function expandViewBoxToIncludePath(path) {
+                if (!path) return;
+                
+                try {
+                    const bbox = path.getBBox();
+                    const currentViewBox = svgElement.getAttribute('viewBox');
+                    let [vbX, vbY, vbWidth, vbHeight] = currentViewBox ? 
+                        currentViewBox.split(' ').map(Number) : [0, 0, 100, 100];
+                    
+                    // Calculate required viewBox expansion
+                    const margin = 50; // Add some margin around new content
+                    const minX = Math.min(vbX, bbox.x - margin);
+                    const minY = Math.min(vbY, bbox.y - margin);
+                    const maxX = Math.max(vbX + vbWidth, bbox.x + bbox.width + margin);
+                    const maxY = Math.max(vbY + vbHeight, bbox.y + bbox.height + margin);
+                    
+                    const newWidth = maxX - minX;
+                    const newHeight = maxY - minY;
+                    
+                    // Only update if the viewBox actually needs to expand
+                    if (minX < vbX || minY < vbY || newWidth > vbWidth || newHeight > vbHeight) {
+                        const newViewBox = `${minX} ${minY} ${newWidth} ${newHeight}`;
+                        svgElement.setAttribute('viewBox', newViewBox);
+                        console.log('Expanded viewBox to:', newViewBox);
+                    }
+                } catch (error) {
+                    console.warn('Could not expand viewBox:', error);
+                }
+            }
+            
+            // Touch events for tablet support
+            svgContainer.addEventListener('touchstart', (e) => {
+                if (currentMode === 'pen' && e.touches.length === 1) {
+                    const touch = e.touches[0];
+                    const mouseEvent = new MouseEvent('mousedown', {
+                        clientX: touch.clientX,
+                        clientY: touch.clientY
+                    });
+                    startDrawing(mouseEvent);
+                }
+            });
+            
+            svgContainer.addEventListener('touchmove', (e) => {
+                if (currentMode === 'pen' && e.touches.length === 1) {
+                    const touch = e.touches[0];
+                    const mouseEvent = new MouseEvent('mousemove', {
+                        clientX: touch.clientX,
+                        clientY: touch.clientY
+                    });
+                    continueDrawing(mouseEvent);
+                }
+            });
+            
+            svgContainer.addEventListener('touchend', (e) => {
+                if (currentMode === 'pen') {
+                    stopDrawing(e);
+                }
+            });
+            
+            // Pointer events for stylus support
+            if (window.PointerEvent) {
+                svgContainer.addEventListener('pointerdown', (e) => {
+                    if (currentMode === 'pen' && e.pointerType === 'pen') {
+                        startDrawing(e);
+                    }
+                });
+                
+                svgContainer.addEventListener('pointermove', (e) => {
+                    if (currentMode === 'pen' && e.pointerType === 'pen') {
+                        continueDrawing(e);
+                    }
+                });
+                
+                svgContainer.addEventListener('pointerup', (e) => {
+                    if (currentMode === 'pen' && e.pointerType === 'pen') {
+                        stopDrawing(e);
+                    }
+                });
+            }
+            
+            // Expose drawing functions globally so they can be called from pan/zoom handlers
+            window.drawingTools = {
+                currentMode: () => currentMode,
+                startDrawing,
+                continueDrawing,
+                stopDrawing,
+                setMode
+            };
+            
+            console.log('Drawing tools exposed globally:', window.drawingTools);
+            
+            // Initialize in select mode
+            setMode('select');
+            console.log('Drawing tools initialization completed');
+        }
+        
         // SVG Pan and Zoom functionality
         function initializeSVGPanZoom() {
             console.log('Initializing SVG pan and zoom...');
             
-            const svgContainer = document.querySelector('.svg-container');
-            const svgElement = document.getElementById('animated-svg');
+            // Use global variables
+            svgContainer = document.querySelector('.svg-container');
+            svgElement = document.getElementById('animated-svg');
             
             console.log('SVG Container:', svgContainer);
             console.log('SVG Element:', svgElement);
@@ -1317,15 +1948,6 @@
             }
             
             console.log('Both elements found, setting up pan and zoom...');
-            
-            let scale = 1;
-            let panX = 0;
-            let panY = 0;
-            let isPanning = false;
-            let startPanX = 0;
-            let startPanY = 0;
-            let startMouseX = 0;
-            let startMouseY = 0;
             
             // Apply transform to SVG
             function updateTransform() {
@@ -1386,9 +2008,18 @@
             // Simplified mouse pan (drag) - start with basic functionality
             svgContainer.addEventListener('mousedown', (e) => {
                 console.log('Mouse down on:', e.target, 'button:', e.button);
+                console.log('Drawing tools mode:', window.drawingTools ? window.drawingTools.currentMode() : 'undefined');
                 
-                // For now, let's just allow panning with left mouse button on any part
-                if (e.button === 0) { // Left mouse button
+                // Handle drawing mode first
+                if (window.drawingTools && window.drawingTools.currentMode() === 'pen') {
+                    console.log('Detected pen mode, calling startDrawing');
+                    window.drawingTools.startDrawing(e);
+                    return;
+                }
+                
+                // For select mode, allow panning with left mouse button
+                if (e.button === 0 && (!window.drawingTools || window.drawingTools.currentMode() === 'select')) { // Left mouse button
+                    console.log('Starting pan mode');
                     isPanning = true;
                     startPanX = panX;
                     startPanY = panY;
@@ -1404,7 +2035,14 @@
             
             // Use document-level mousemove to track movement even outside container
             document.addEventListener('mousemove', (e) => {
-                if (isPanning) {
+                // Handle drawing mode
+                if (window.drawingTools && window.drawingTools.currentMode() === 'pen') {
+                    window.drawingTools.continueDrawing(e);
+                    return;
+                }
+                
+                // Handle panning in select mode
+                if (isPanning && (!window.drawingTools || window.drawingTools.currentMode() === 'select')) {
                     const deltaX = e.clientX - startMouseX;
                     const deltaY = e.clientY - startMouseY;
                     
@@ -1419,17 +2057,30 @@
             
             // Handle mouse up on document to catch releases outside container
             document.addEventListener('mouseup', (e) => {
-                if (isPanning) {
+                // Handle drawing mode
+                if (window.drawingTools && window.drawingTools.currentMode() === 'pen') {
+                    window.drawingTools.stopDrawing(e);
+                    return;
+                }
+                
+                // Handle panning in select mode
+                if (isPanning && (!window.drawingTools || window.drawingTools.currentMode() === 'select')) {
                     console.log('Stopped panning');
                     isPanning = false;
-                    svgContainer.style.cursor = 'grab';
+                    const currentMode = window.drawingTools ? window.drawingTools.currentMode() : 'select';
+                    svgContainer.style.cursor = currentMode === 'select' ? 'grab' : 'crosshair';
                 }
             });
             
             // Handle mouse enter/leave for cursor management
             svgContainer.addEventListener('mouseenter', (e) => {
                 if (!isPanning) {
-                    svgContainer.style.cursor = 'grab';
+                    const currentMode = window.drawingTools ? window.drawingTools.currentMode() : 'select';
+                    if (currentMode === 'select') {
+                        svgContainer.style.cursor = 'grab';
+                    } else if (currentMode === 'pen') {
+                        svgContainer.style.cursor = 'crosshair';
+                    }
                 }
             });
             
@@ -1439,14 +2090,17 @@
                 }
             });
             
-            // Double-click to reset view
+            // Double-click to reset view (only in select mode)
             svgContainer.addEventListener('dblclick', (e) => {
-                console.log('Double-click reset');
-                scale = 1;
-                panX = 0;
-                panY = 0;
-                updateTransform();
-                e.preventDefault();
+                const currentMode = window.drawingTools ? window.drawingTools.currentMode() : 'select';
+                if (currentMode === 'select') {
+                    console.log('Double-click reset');
+                    scale = 1;
+                    panX = 0;
+                    panY = 0;
+                    updateTransform();
+                    e.preventDefault();
+                }
             });
             
             // Expose zoom/pan functions globally for controls

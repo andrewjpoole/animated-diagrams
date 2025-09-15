@@ -97,14 +97,14 @@ The system automatically detects and animates all paths in any SVG file, making 
 
 ## ToDo
 
-* ability to set a viewport to smoothly navigate to, again probably xml comments
-
-* investigate how hard it would be to add a page to actually draw the diagrams with a drawing tablet and simple tool pallet
+* insert mode for new paths at the correct place in the path order
 
 * undo/redo buffer
-
-* New diagram button
-
 * Keyboard bindings
+* settings for configuring keybindings
 
-* tablet support
+* dark mode
+* tidy up console logs, have a switch
+
+* ability to set a viewport to smoothly navigate to, again probably xml comments
+* live presentatino mode? sans poewrpoint?

@@ -292,6 +292,9 @@ class SVGAnimator {
             // Initialize paths and animation
             this.initializePaths();
             
+            // Enable record button now that SVG is loaded
+            this.enableRecordButton();
+            
         } catch (error) {
             console.error('Error loading SVG from content:', error);
             const placeholder = document.getElementById('svg-placeholder');
@@ -302,6 +305,56 @@ class SVGAnimator {
             }
             throw error;
         }
+    }
+    
+    createNewSvg() {
+        try {
+            // Create a new blank SVG
+            const newFilename = this.generateNewFilename();
+            console.log(`Creating new SVG: ${newFilename}`);
+            
+            // Create a basic SVG template
+            const svgTemplate = `<svg width="800" height="600" viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+    <title>New SVG Diagram</title>
+    <!-- Your drawing will appear here -->
+</svg>`;
+            
+            // Load the new SVG content
+            this.loadSVGFromContent(svgTemplate, newFilename);
+            
+            // Update dropdown to show the new file
+            const dropdown = document.getElementById('svgFile');
+            if (dropdown) {
+                // Add new option to dropdown
+                const option = document.createElement('option');
+                option.value = newFilename;
+                option.textContent = newFilename;
+                option.selected = true;
+                dropdown.appendChild(option);
+            }
+            
+            // Store as custom file
+            this.customSvgFile = {
+                name: newFilename,
+                content: svgTemplate,
+                lastModified: Date.now()
+            };
+            
+            this.selectedSVGFile = newFilename;
+            this.saveSettings();
+            
+            console.log(`New SVG created: ${newFilename}`);
+            
+        } catch (error) {
+            console.error('Error creating new SVG:', error);
+            alert(`Error creating new SVG: ${error.message}`);
+        }
+    }
+    
+    generateNewFilename() {
+        const now = new Date();
+        const timestamp = now.toISOString().slice(0, 19).replace(/[:T]/g, '-');
+        return `new-diagram-${timestamp}.svg`;
     }
     
     async loadSVG(filename = null) {
@@ -338,6 +391,9 @@ class SVGAnimator {
             if (svgElement) {
                 svgElement.id = 'animated-svg';
                 this.initializePaths();
+                
+                // Enable record button now that SVG is loaded
+                this.enableRecordButton();
             } else {
                 throw new Error('SVG element not found');
             }
@@ -453,6 +509,9 @@ class SVGAnimator {
         if (this.pathEditorVisible) {
             this.refreshPathList();
         }
+        
+        // Ensure record button is enabled after paths are initialized
+        this.enableRecordButton();
     }
     
     isHandwritingElement(element) {
@@ -749,10 +808,14 @@ class SVGAnimator {
         }
         if (recordBtn) {
             recordBtn.addEventListener('click', () => this.recordAnimation());
+            // Initially disable until SVG is loaded
+            recordBtn.disabled = true;
+            recordBtn.textContent = '🎥 Loading...';
         }
         
         // File browser functionality
         const browseSvgBtn = document.getElementById('browseSvgBtn');
+        const newSvgBtn = document.getElementById('newSvgBtn');
         const svgFileInput = document.getElementById('svgFileInput');
         
         if (browseSvgBtn && svgFileInput) {
@@ -762,6 +825,12 @@ class SVGAnimator {
             
             svgFileInput.addEventListener('change', (e) => {
                 this.handleSvgFileSelection(e);
+            });
+        }
+        
+        if (newSvgBtn) {
+            newSvgBtn.addEventListener('click', () => {
+                this.createNewSvg();
             });
         }
         
@@ -1107,6 +1176,23 @@ class SVGAnimator {
         }
     }
     
+    enableRecordButton() {
+        const recordBtn = document.getElementById('recordBtn');
+        if (recordBtn && this.allElements && this.allElements.length > 0) {
+            recordBtn.disabled = false;
+            recordBtn.textContent = '🎥 Record Video';
+            console.log('Record button enabled - SVG ready');
+        } else {
+            console.log('Record button not enabled - waiting for SVG to load');
+            // Retry after a short delay if SVG isn't ready yet
+            setTimeout(() => {
+                if (this.allElements && this.allElements.length > 0) {
+                    this.enableRecordButton();
+                }
+            }, 500);
+        }
+    }
+    
     updateButtonStates() {
         const playPauseBtn = document.getElementById('playPauseBtn');
         const resetBtn = document.getElementById('resetBtn');
@@ -1131,6 +1217,12 @@ class SVGAnimator {
     }
     
     async recordAnimation() {
+        // Check if SVG is loaded first
+        if (!this.allElements || this.allElements.length === 0) {
+            alert('Please load an SVG file before recording');
+            return;
+        }
+        
         const recordBtn = document.getElementById('recordBtn');
         const originalText = recordBtn.textContent;
         
@@ -1156,15 +1248,37 @@ class SVGAnimator {
             recordBtn.textContent = '🎥 Rendering...';
             recordBtn.disabled = true;
             
-            // Get the SVG container element
-            const svgContainer = document.getElementById('svg-placeholder');
-            const svgElement = svgContainer.querySelector('svg');
+            // Get the SVG element with better error handling - check multiple possible locations
+            let svgElement = null;
+            
+            // First try svg-placeholder (used by loadSVG)
+            const svgPlaceholder = document.getElementById('svg-placeholder');
+            if (svgPlaceholder) {
+                svgElement = svgPlaceholder.querySelector('svg');
+            }
+            
+            // If not found, try svg-container (used by loadSVGFromContent)
             if (!svgElement) {
-                throw new Error('SVG element not found');
+                const svgContainer = document.querySelector('.svg-container');
+                if (svgContainer) {
+                    svgElement = svgContainer.querySelector('svg');
+                }
+            }
+            
+            // Final fallback - search the entire document
+            if (!svgElement) {
+                svgElement = document.querySelector('#animated-svg');
+            }
+            
+            if (!svgElement) {
+                throw new Error('SVG element not found. Please ensure an SVG file is properly loaded.');
             }
             
             // Reset animation to beginning
             this.resetAnimation();
+            
+            // Store the original viewBox so we can restore it later
+            const originalViewBox = svgElement.getAttribute('viewBox');
             
             // Get target resolution based on preset
             let svgWidth, svgHeight;
@@ -1186,13 +1300,46 @@ class SVGAnimator {
                     svgHeight = 2160;
                     break;
                 default:
-                    // Fallback to current SVG dimensions
-                    const svgRect = svgElement.getBoundingClientRect();
-                    svgWidth = svgRect.width || 1920;
-                    svgHeight = svgRect.height || 1080;
+                    // Use current viewBox dimensions for default
+                    if (originalViewBox) {
+                        const [vbX, vbY, vbWidth, vbHeight] = originalViewBox.split(' ').map(Number);
+                        svgWidth = Math.round(vbWidth);
+                        svgHeight = Math.round(vbHeight);
+                    } else {
+                        svgWidth = 1920;
+                        svgHeight = 1080;
+                    }
             }
             
-            // Create high-resolution canvas for recording
+            // Set the SVG viewBox to match the recording resolution for proper framing
+            // This zooms the viewport to show exactly what will fit in the target resolution
+            if (originalViewBox) {
+                const [origX, origY, origWidth, origHeight] = originalViewBox.split(' ').map(Number);
+                const aspectRatio = svgWidth / svgHeight;
+                const origAspectRatio = origWidth / origHeight;
+                
+                let newViewBoxWidth, newViewBoxHeight;
+                let newViewBoxX = origX;
+                let newViewBoxY = origY;
+                
+                if (origAspectRatio > aspectRatio) {
+                    // Original is wider - fit by height and center horizontally
+                    newViewBoxHeight = origHeight;
+                    newViewBoxWidth = origHeight * aspectRatio;
+                    newViewBoxX = origX + (origWidth - newViewBoxWidth) / 2;
+                } else {
+                    // Original is taller - fit by width and center vertically  
+                    newViewBoxWidth = origWidth;
+                    newViewBoxHeight = origWidth / aspectRatio;
+                    newViewBoxY = origY + (origHeight - newViewBoxHeight) / 2;
+                }
+                
+                const recordingViewBox = `${newViewBoxX} ${newViewBoxY} ${newViewBoxWidth} ${newViewBoxHeight}`;
+                svgElement.setAttribute('viewBox', recordingViewBox);
+                console.log(`Recording viewBox: ${recordingViewBox} (${svgWidth}x${svgHeight})`);
+            }
+            
+            // Create canvas matching the target resolution exactly
             const canvas = document.createElement('canvas');
             canvas.width = svgWidth;
             canvas.height = svgHeight;
@@ -1203,6 +1350,8 @@ class SVGAnimator {
             ctx.imageSmoothingQuality = 'high';
             
             // Set white background initially
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = 'white';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
@@ -1361,6 +1510,13 @@ class SVGAnimator {
                     URL.revokeObjectURL(url);
                 }
                 
+                // Restore original viewBox
+                if (originalViewBox) {
+                    svgElement.setAttribute('viewBox', originalViewBox);
+                } else {
+                    svgElement.removeAttribute('viewBox');
+                }
+                
                 recordBtn.textContent = originalText;
                 recordBtn.disabled = false;
             };
@@ -1433,6 +1589,14 @@ class SVGAnimator {
         } catch (error) {
             console.error('Recording failed:', error);
             alert(`Recording failed: ${error.message}\n\nPlease ensure you're using a supported browser (Chrome or Firefox).`);
+            
+            // Restore original viewBox even on error
+            if (originalViewBox) {
+                svgElement.setAttribute('viewBox', originalViewBox);
+            } else {
+                svgElement.removeAttribute('viewBox');
+            }
+            
             recordBtn.textContent = originalText;
             recordBtn.disabled = false;
         }

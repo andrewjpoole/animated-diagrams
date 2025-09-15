@@ -1,0 +1,48 @@
+{
+  "version": "1.0",
+  "description": "Default rules for SVG animation styling and behavior",
+  "rules": [
+  {
+    "name": "background colours",
+    "isSystem": false,
+    "conditions": [
+      {
+        "property": "stroke-width",
+        "operator": "=",
+        "value": "12.000"
+      }
+    ],
+    "actions": [
+      {
+        "property": "stroke-width",
+        "value": "19.000"
+      },
+      {
+        "property": "opacity",
+        "value": "1.0"
+      },
+      {
+        "property": "animation-speed",
+        "value": "0.2"
+      }
+    ]
+  },
+  {
+    "name": "Handwriting Detection",
+    "isSystem": true,
+    "conditions": [
+      {
+        "property": "path-length",
+        "operator": "<=",
+        "value": "200"
+      }
+    ],
+    "actions": [      
+      {
+        "property": "animation-speed",
+        "value": "0.2"
+      }
+    ]
+  }
+ ]
+}

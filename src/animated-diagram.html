@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animated SVG Diagram</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Hamburger Menu Button -->
+    <button class="hamburger-menu" id="hamburgerBtn">
+        ☰
+    </button>
+    
+    <!-- Controls Panel (Hidden by default) -->
+    <div class="controls-panel" id="controlsPanel">
+        <div class="controls-panel-header">
+            <h3 class="controls-panel-title">Animation Controls</h3>
+            <button class="close-panel-btn" id="closePanelBtn">×</button>
+        </div>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label for="svgFile">SVG File:</label>
+                <div class="control-inputs">
+                    <select id="svgFile">
+                        <option value="aspire-wire-up.svg">Loading...</option>
+                    </select>
+                    <button id="browseSvgBtn" class="btn-secondary">Browse...</button>
+                    <input type="file" id="svgFileInput" accept=".svg" style="display: none;">
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <label for="speed">Base Speed (ms per 100 units):</label>
+                <div class="control-inputs">
+                    <input type="range" id="speed" min="50" max="2000" value="500" step="50">
+                    <input type="number" id="speedValue" min="50" max="2000" value="500" step="50">
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <label for="delay">Delay Between Elements (ms):</label>
+                <div class="control-inputs">
+                    <input type="range" id="delay" min="0" max="1000" value="100" step="25">
+                    <input type="number" id="delayValue" min="0" max="1000" value="100" step="25">
+                </div>
+            </div>
+            
+            <div class="buttons">&nbsp;
+                <button id="playPauseBtn" class="btn-primary">▶ Start Animation</button>
+                <button id="resetBtn" class="btn-secondary">⟲ Clear</button>
+                <button id="completeBtn" class="btn-success">⏭ Show Complete</button>
+            </div>
+            
+            <div class="rules-section">
+                <div class="rules-header">
+                    <h3>Style Override Rules</h3>
+                    <button class="rules-toggle" id="rulesToggle">Show Rules</button>
+                </div>
+                <div class="rules-content" id="rulesContent">
+                    <div id="rulesList"></div>
+                    <button class="add-rule-btn" id="addRuleBtn">+ Add Rule</button>
+                    <button class="clear-rules-btn" id="clearRulesBtn">Clear All Rules</button>
+                    <button class="export-rules-btn" id="exportRulesBtn">Export Rules</button>
+                    <div class="import-rules-container">
+                        <button class="import-rules-btn" id="importRulesBtn">Import Rules</button>
+                        <input type="file" id="importFileInput" class="file-input" accept=".json">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="path-editor-section">
+                <div class="path-editor-header">
+                    <h3>Path Editor</h3>
+                    <button class="path-editor-toggle" id="pathEditorToggle">Show Editor</button>
+                </div>
+                <div class="path-editor-content" id="pathEditorContent">
+                    <div class="path-editor-layout">
+                        <div class="path-list-container">
+                            <div class="path-list-header">
+                                <h4>Paths & Elements</h4>
+                                <div class="selection-controls">
+                                    <button class="btn-mini" id="selectAllBtn">All</button>
+                                    <button class="btn-mini" id="selectNoneBtn">None</button>
+                                    <button class="btn-mini" id="selectInvertBtn">Invert</button>
+                                </div>
+                            </div>
+                            <div class="path-list" id="pathList">
+                                <!-- Path items will be dynamically populated here -->
+                            </div>
+                        </div>
+                        
+                        <div class="path-properties-container">
+                            <div class="path-properties-header">
+                                <h4>Properties</h4>
+                                <span id="selectionCount">No selection</span>
+                            </div>
+                            <div class="path-properties" id="pathProperties">
+                                <div class="no-selection">Select path(s) to view properties</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="path-editor-actions">
+                        <div class="button-row">
+                            <button class="btn-secondary" id="moveUpBtn" disabled>↑ Move Up</button>
+                            <button class="btn-secondary" id="moveDownBtn" disabled>↓ Move Down</button>
+                            <button class="btn-secondary" id="moveToTopBtn" disabled>⇈ To Top</button>
+                            <button class="btn-secondary" id="moveToBottomBtn" disabled>⇊ To Bottom</button>
+                        </div>
+                        <div class="button-row">
+                            <button class="btn-action" id="insertPauseBtn" disabled>⏸️ Insert Pause</button>
+                            <button class="btn-action" id="insertSpeedHintBtn" disabled>⚡ Insert Speed Hint</button>
+                            <button class="btn-danger" id="deletePathsBtn" disabled>🗑️ Delete</button>
+                            <button class="btn-success" id="exportSvgBtn" disabled>💾 Export SVG</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="recording-section">
+                <h3>Video Recording</h3>
+                <div class="recording-controls-compact">
+                    <div class="compact-row">
+                        <label>FPS:</label>
+                        <select id="recordFrameRate">
+                            <option value="24">24</option>
+                            <option value="30" selected>30</option>
+                            <option value="60">60</option>
+                        </select>
+                        <label>Res:</label>
+                        <select id="recordResolution">
+                            <option value="720p">720p (1280x720)</option>
+                            <option value="1080p" selected>1080p (1920x1080)</option>
+                            <option value="1440p">1440p (2560x1440)</option>
+                            <option value="4k">4K (3840x2160)</option>
+                        </select>
+                    </div>
+                    <div class="compact-row">
+                        <label>Quality:</label>
+                        <select id="recordBitrate">
+                            <option value="5">5 Mbps</option>
+                            <option value="15">15 Mbps</option>
+                            <option value="25" selected>25 Mbps</option>
+                            <option value="40">40 Mbps</option>
+                        </select>
+                    </div>
+                    <div class="compact-row">
+                        <label>Pause at end:</label>
+                        <input type="number" id="recordEndPauseValue" min="0" max="3000" value="500" step="100" style="width: 60px;">
+                        <span style="font-size: 11px;">ms</span>
+                    </div>
+                    <div class="compact-row">
+                        <label>Show complete SVG at start:</label>
+                        <input type="checkbox" id="recordShowCompleteStart" checked>
+                        <label style="font-size: 11px; min-width: auto; margin-left: 5px;">200ms preview</label>
+                    </div>
+                </div>
+                <button id="recordBtn" class="btn-record">🎥 Record Video</button>
+            </div>
+            
+            <div class="progress-info">
+                <span id="progressText">Ready to animate elements</span>
+                <div style="margin-top: 5px; font-size: 11px;">
+                    <span id="pathStatsText">Analyzing elements...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main Content Area -->
+    <div class="container">
+        <div class="svg-section" id="svgSection">
+            <div class="svg-container">
+                <!-- SVG content will be loaded here -->
+                <div id="svg-placeholder">Loading SVG...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="animation.js"></script>
+    <script>
+        // Hamburger menu functionality
+        function initializeHamburgerMenu() {
+            const hamburgerBtn = document.getElementById('hamburgerBtn');
+            const controlsPanel = document.getElementById('controlsPanel');
+            const closePanelBtn = document.getElementById('closePanelBtn');
+            const svgSection = document.getElementById('svgSection');
+            
+            function openPanel() {
+                controlsPanel.classList.add('open');
+                svgSection.classList.add('panel-open');
+                hamburgerBtn.classList.add('hidden');
+            }
+            
+            function closePanel() {
+                controlsPanel.classList.remove('open');
+                svgSection.classList.remove('panel-open');
+                hamburgerBtn.classList.remove('hidden');
+            }
+            
+            hamburgerBtn.addEventListener('click', openPanel);
+            closePanelBtn.addEventListener('click', closePanel);
+            
+            // Close panel when clicking outside of it (but not on SVG elements)
+            document.addEventListener('click', (e) => {
+                if (controlsPanel.classList.contains('open') && 
+                    !controlsPanel.contains(e.target) && 
+                    !hamburgerBtn.contains(e.target) &&
+                    !e.target.closest('#animated-svg')) {
+                    closePanel();
+                }
+            });
+            
+            // Close panel on Escape key
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && controlsPanel.classList.contains('open')) {
+                    closePanel();
+                }
+            });
+        }
+        
+        // Style override rules functionality
+        window.styleRules = [];
+        const STORAGE_KEY = 'svg-animation-style-rules';
+        
+        function loadRulesFromStorage() {
+            try {
+                const stored = localStorage.getItem(STORAGE_KEY);
+                if (stored) {
+                    window.styleRules = JSON.parse(stored);
+                    console.log('Loaded rules from storage:', window.styleRules);
+                    return window.styleRules;
+                }
+            } catch (error) {
+                console.warn('Failed to load rules from storage:', error);
+            }
+            return [];
+        }
+        
+        function saveRulesToStorage() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(window.styleRules));
+                console.log('Saved rules to storage:', window.styleRules);
+            } catch (error) {
+                console.warn('Failed to save rules to storage:', error);
+            }
+        }
+        
+        function initializeRulesUI() {
+            // Toggle rules section
+            document.getElementById('rulesToggle').addEventListener('click', () => {
+                const content = document.getElementById('rulesContent');
+                const toggle = document.getElementById('rulesToggle');
+                
+                if (content.classList.contains('show')) {
+                    content.classList.remove('show');
+                    toggle.textContent = 'Show Rules';
+                } else {
+                    content.classList.add('show');
+                    toggle.textContent = 'Hide Rules';
+                }
+            });
+            
+            // Add new rule
+            document.getElementById('addRuleBtn').addEventListener('click', () => {
+                addRule();
+            });
+            
+            // Clear all rules
+            document.getElementById('clearRulesBtn').addEventListener('click', () => {
+                if (confirm('Are you sure you want to clear all rules? This action cannot be undone.')) {
+                    clearAllRules();
+                }
+            });
+            
+            // Export rules
+            document.getElementById('exportRulesBtn').addEventListener('click', () => {
+                exportRules();
+            });
+            
+            // Import rules
+            document.getElementById('importRulesBtn').addEventListener('click', () => {
+                document.getElementById('importFileInput').click();
+            });
+            
+            document.getElementById('importFileInput').addEventListener('change', (e) => {
+                importRules(e.target.files[0]);
+            });
+
+            // Load default rules from JSON file
+            async function loadDefaultRules() {
+                try {
+                    const response = await fetch('./default-rules.json');
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    const data = await response.json();
+                    return data.rules || [];
+                } catch (error) {
+                    console.error('Error loading default rules:', error);
+                    // Fallback to hardcoded rules if file load fails
+                    return [
+                        {
+                            name: "Handwriting Detection",
+                            isSystem: true,
+                            conditions: [
+                                { property: 'stroke', value: '#000000' },
+                                { property: 'path-length', value: '200' }
+                            ],
+                            actions: [
+                                { property: 'stroke-width', value: '1.5' },
+                                { property: 'opacity', value: '0.9' },
+                                { property: 'stroke-opacity', value: '1.0' },
+                                { property: 'animation-speed', value: '100' }
+                            ]
+                        },
+                        {
+                            name: "Thick Lines (Slow)",
+                            isSystem: false,
+                            conditions: [{ property: 'stroke-width', value: '12.000' }],
+                            actions: [
+                                { property: 'stroke-width', value: '19.000' },
+                                { property: 'animation-speed', value: '800' }
+                            ]
+                        },
+                        {
+                            name: "Faded Elements (Fast)",
+                            isSystem: false,
+                            conditions: [{ property: 'opacity', value: '0.247' }],
+                            actions: [
+                                { property: 'opacity', value: '1.0' },
+                                { property: 'animation-speed', value: '0.6' }
+                            ]
+                        },
+                        {
+                            name: "Golden Glow for Text",
+                            isSystem: false,
+                            conditions: [{ property: 'stroke', value: '#000000' }],
+                            actions: [
+                                { property: 'glow-effect', value: '#ffd700,12' }
+                            ]
+                        },
+                        {
+                            name: "Test Glow for All Paths",
+                            isSystem: false,
+                            conditions: [{ property: 'path-length', value: '1000', operator: '<' }],
+                            actions: [
+                                { property: 'glow-effect', value: '#ff0000,6' }
+                            ]
+                        }
+                    ];
+                }
+            }
+            
+            // Initialize rules system
+            async function initializeRules() {
+                // Load existing rules from storage
+                const existingRules = loadRulesFromStorage();
+                
+                // Check if we have any system rules
+                const hasSystemRules = existingRules.some(rule => rule.isSystem);
+                
+                if (existingRules.length > 0) {
+                    // Load existing rules from storage
+                    existingRules.forEach(rule => {
+                        // Handle backward compatibility with old single-condition/action rules
+                        if (rule.property && rule.value && rule.targetProperty && rule.targetValue) {
+                            // Old single condition/action format
+                            const conditions = [{ property: rule.property, value: rule.value }];
+                            const actions = [{ property: rule.targetProperty, value: rule.targetValue }];
+                            addRule(conditions, actions, rule.name || 'Legacy Rule', rule.isSystem || false);
+                        } else if (rule.conditions && rule.targetProperty && rule.targetValue) {
+                            // Multi-condition, single action format
+                            const actions = [{ property: rule.targetProperty, value: rule.targetValue }];
+                            addRule(rule.conditions, actions, rule.name || 'Legacy Rule', rule.isSystem || false);
+                        } else if (rule.conditions && rule.actions) {
+                            // New multi-condition, multi-action format
+                            addRule(rule.conditions, rule.actions, rule.name || 'Custom Rule', rule.isSystem || false);
+                        }
+                    });
+                }
+                
+                // Always load default rules if we don't have system rules
+                if (!hasSystemRules) {
+                    const defaultRules = await loadDefaultRules();
+                    defaultRules.forEach(rule => {
+                        addRule(rule.conditions, rule.actions, rule.name, rule.isSystem || false);
+                    });
+                }
+            }
+            
+            // Initialize the rules system
+            initializeRules();
+        }
+        
+        function createActionValueInput(property, value = '') {
+            if (property === 'animation-speed') {
+                // Create slider for animation speed multiplier (0.2x to 3.0x)
+                const sliderValue = value || '1.0';
+                return `
+                    <input type="range" class="action-value action-slider" 
+                           min="0.2" max="3.0" step="0.1" value="${sliderValue}"
+                           oninput="this.nextElementSibling.textContent = this.value + 'x'">
+                    <span class="slider-value">${sliderValue}x</span>
+                `;
+            } else if (property === 'glow-effect') {
+                // Parse current value (format: "color" or "color,size")
+                let currentColor = '#ffd700';
+                let currentSize = 8;
+                
+                if (value) {
+                    if (value.includes(',')) {
+                        const parts = value.split(',');
+                        currentColor = parts[0].trim();
+                        currentSize = parseInt(parts[1].trim()) || 8;
+                    } else {
+                        currentColor = value;
+                    }
+                }
+                
+                return `
+                    <div class="glow-controls">
+                        <input type="color" class="glow-color" value="${currentColor}"
+                               oninput="updateGlowValue(this)">
+                        <input type="range" class="glow-size" min="2" max="20" step="1" value="${currentSize}"
+                               oninput="updateGlowValue(this)">
+                        <span class="glow-size-label">${currentSize}px</span>
+                        <input type="hidden" class="action-value" value="${currentColor},${currentSize}">
+                    </div>
+                `;
+            } else {
+                // Regular text input for other properties
+                return `<input type="text" class="action-value" value="${value}" placeholder="new value">`;
+            }
+        }
+        
+        function updateGlowValue(changedInput) {
+            const glowControls = changedInput.closest('.glow-controls');
+            const colorInput = glowControls.querySelector('.glow-color');
+            const sizeInput = glowControls.querySelector('.glow-size');
+            const sizeLabel = glowControls.querySelector('.glow-size-label');
+            const hiddenInput = glowControls.querySelector('.action-value');
+            
+            // Update size label
+            sizeLabel.textContent = sizeInput.value + 'px';
+            
+            // Update hidden input with combined value
+            hiddenInput.value = `${colorInput.value},${sizeInput.value}`;
+        }
+        
+        function setupActionPropertyListeners(ruleDiv) {
+            const actionItems = ruleDiv.querySelectorAll('.action-item');
+            actionItems.forEach(actionItem => {
+                const propertySelect = actionItem.querySelector('.action-property');
+                if (propertySelect && !propertySelect.hasAttribute('data-listener-added')) {
+                    propertySelect.setAttribute('data-listener-added', 'true');
+                    propertySelect.addEventListener('change', function() {
+                        const valueContainer = this.parentNode;
+                        const equalSpan = valueContainer.querySelector('span:nth-of-type(2)'); // The "=" span
+                        
+                        // Get current value before removing
+                        const currentValue = valueContainer.querySelector('.action-value')?.value || '';
+                        
+                        // Remove existing input/slider
+                        const existingInput = valueContainer.querySelector('.action-value');
+                        const existingSliderValue = valueContainer.querySelector('.slider-value');
+                        if (existingInput) existingInput.remove();
+                        if (existingSliderValue) existingSliderValue.remove();
+                        
+                        // Create new input based on property type
+                        const newInputHtml = createActionValueInput(this.value, currentValue);
+                        equalSpan.insertAdjacentHTML('afterend', newInputHtml);
+                        
+                        // Add event listeners to new input
+                        const newInput = valueContainer.querySelector('.action-value');
+                        newInput.addEventListener('change', updateStyleRules);
+                        newInput.addEventListener('input', updateStyleRules);
+                        
+                        updateStyleRules();
+                    });
+                }
+                
+                // Also add input event listener for sliders
+                const actionValue = actionItem.querySelector('.action-value');
+                if (actionValue && actionValue.type === 'range') {
+                    actionValue.addEventListener('input', updateStyleRules);
+                }
+            });
+        }
+        
+        function addRule(conditions = null, actions = null, name = null, isSystem = false) {
+            const ruleId = 'rule_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            const ruleDiv = document.createElement('div');
+            ruleDiv.className = 'rule-item';
+            ruleDiv.id = ruleId;
+            
+            // Mark system rules
+            if (isSystem) {
+                ruleDiv.classList.add('system-rule');
+                ruleDiv.dataset.isSystem = 'true';
+            }
+            
+            // Default conditions if none provided
+            if (!conditions) {
+                conditions = [{ property: 'stroke-width', value: '' }];
+            }
+            
+            // Default actions if none provided
+            if (!actions) {
+                actions = [{ property: 'stroke-width', value: '' }];
+            }
+            
+            // Default name if none provided
+            if (!name) {
+                name = isSystem ? 'System Rule' : 'Custom Rule';
+            }
+            
+            let conditionsHtml = '';
+            conditions.forEach((condition, index) => {
+                const conditionId = `condition_${ruleId}_${index}`;
+                conditionsHtml += `
+                    <div class="condition-group" data-condition-index="${index}">
+                        ${index > 0 ? '<span style="font-weight: bold;">AND</span>' : '<span>If</span>'}
+                        <select class="condition-property">
+                            <option value="stroke-width" ${condition.property === 'stroke-width' ? 'selected' : ''}>stroke-width</option>
+                            <option value="stroke" ${condition.property === 'stroke' ? 'selected' : ''}>stroke color</option>
+                            <option value="fill" ${condition.property === 'fill' ? 'selected' : ''}>fill color</option>
+                            <option value="opacity" ${condition.property === 'opacity' ? 'selected' : ''}>opacity</option>
+                            <option value="stroke-opacity" ${condition.property === 'stroke-opacity' ? 'selected' : ''}>stroke-opacity</option>
+                            <option value="fill-opacity" ${condition.property === 'fill-opacity' ? 'selected' : ''}>fill-opacity</option>
+                            <option value="path-length" ${condition.property === 'path-length' ? 'selected' : ''}>path length</option>
+                            <option value="animation-speed" ${condition.property === 'animation-speed' ? 'selected' : ''}>animation speed</option>
+                        </select>
+                        <select class="condition-operator">
+                            <option value="=" ${(condition.operator || '=') === '=' ? 'selected' : ''}>=</option>
+                            <option value="<" ${(condition.operator || '=') === '<' ? 'selected' : ''}>&lt;</option>
+                            <option value=">" ${(condition.operator || '=') === '>' ? 'selected' : ''}>&gt;</option>
+                            <option value="<=" ${(condition.operator || '=') === '<=' ? 'selected' : ''}>&le;</option>
+                            <option value=">=" ${(condition.operator || '=') === '>=' ? 'selected' : ''}>&ge;</option>
+                        </select>
+                        <input type="text" class="condition-value" value="${condition.value || ''}" placeholder="value">
+                        ${conditions.length > 1 ? `<button class="remove-condition-btn" onclick="removeCondition(event, '${ruleId}', ${index})">×</button>` : ''}
+                    </div>
+                `;
+            });
+            
+            let actionsHtml = '';
+            actions.forEach((action, index) => {
+                actionsHtml += `
+                    <div class="action-item" data-action-index="${index}">
+                        ${index > 0 ? '<span style="font-weight: bold;">AND</span>' : '<span>then set</span>'}
+                        <select class="action-property">
+                            <option value="stroke-width" ${action.property === 'stroke-width' ? 'selected' : ''}>stroke-width</option>
+                            <option value="stroke" ${action.property === 'stroke' ? 'selected' : ''}>stroke color</option>
+                            <option value="fill" ${action.property === 'fill' ? 'selected' : ''}>fill color</option>
+                            <option value="opacity" ${action.property === 'opacity' ? 'selected' : ''}>opacity</option>
+                            <option value="stroke-opacity" ${action.property === 'stroke-opacity' ? 'selected' : ''}>stroke-opacity</option>
+                            <option value="fill-opacity" ${action.property === 'fill-opacity' ? 'selected' : ''}>fill-opacity</option>
+                            <option value="animation-speed" ${action.property === 'animation-speed' ? 'selected' : ''}>animation speed (multiplier)</option>
+                            <option value="glow-effect" ${action.property === 'glow-effect' ? 'selected' : ''}>glow effect</option>
+                        </select>
+                        <span>=</span>
+                        ${createActionValueInput(action.property, action.value)}
+                        ${actions.length > 1 ? `<button class="remove-action-btn" onclick="removeAction(event, '${ruleId}', ${index})">×</button>` : ''}
+                    </div>
+                `;
+            });
+            
+            ruleDiv.innerHTML = `
+                <div class="rule-header">
+                    <input type="text" class="rule-name-input" value="${name}" placeholder="Rule name" ${isSystem ? 'readonly' : ''}>
+                </div>
+                <div class="conditions-container">
+                    ${conditionsHtml}
+                    <button class="add-condition-btn" onclick="addCondition('${ruleId}')">+ Add Condition</button>
+                </div>
+                <div class="action-group">
+                    ${actionsHtml}
+                    <div class="action-buttons-row">
+                        <button class="add-action-btn" onclick="addAction('${ruleId}')">+ Add Action</button>
+                        <div class="rule-actions">
+                            <button class="show-btn" onclick="showRuleMatches('${ruleId}')">👁 Show</button>
+                            <button class="duplicate-btn" onclick="duplicateRule('${ruleId}')">⎘ Duplicate</button>
+                            <button class="remove-btn" onclick="removeRule('${ruleId}')" ${isSystem ? 'style="display:none"' : ''}>× Remove</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('rulesList').appendChild(ruleDiv);
+            
+            // Add event listeners for this rule
+            const inputs = ruleDiv.querySelectorAll('input, select');
+            inputs.forEach(input => {
+                input.addEventListener('change', updateStyleRules);
+                if (input.type === 'range') {
+                    input.addEventListener('input', updateStyleRules);
+                }
+            });
+            
+            // Setup property change listeners for dynamic input switching
+            setupActionPropertyListeners(ruleDiv);
+            
+            updateStyleRules();
+        }
+        
+        function addAction(ruleId) {
+            const ruleDiv = document.getElementById(ruleId);
+            const actionGroup = ruleDiv.querySelector('.action-group');
+            const addActionBtn = actionGroup.querySelector('.action-buttons-row .add-action-btn');
+            const existingActions = actionGroup.querySelectorAll('.action-item');
+            const newIndex = existingActions.length;
+            
+            const actionDiv = document.createElement('div');
+            actionDiv.className = 'action-item';
+            actionDiv.setAttribute('data-action-index', newIndex);
+            
+            actionDiv.innerHTML = `
+                <span style="font-weight: bold;">AND</span>
+                <select class="action-property">
+                    <option value="stroke-width">stroke-width</option>
+                    <option value="stroke">stroke color</option>
+                    <option value="fill">fill color</option>
+                    <option value="opacity">opacity</option>
+                    <option value="stroke-opacity">stroke-opacity</option>
+                    <option value="fill-opacity">fill-opacity</option>
+                    <option value="animation-speed">animation speed (multiplier)</option>
+                    <option value="glow-effect">glow effect</option>
+                </select>
+                <span>=</span>
+                ${createActionValueInput('stroke-width', '')}
+                <button class="remove-action-btn" onclick="removeAction(event, '${ruleId}', ${newIndex})">×</button>
+            `;
+            
+            actionGroup.insertBefore(actionDiv, actionGroup.querySelector('.action-buttons-row'));
+            
+            // Add event listeners
+            const inputs = actionDiv.querySelectorAll('input, select');
+            inputs.forEach(input => {
+                input.addEventListener('change', updateStyleRules);
+                if (input.type === 'range') {
+                    input.addEventListener('input', updateStyleRules);
+                }
+            });
+            
+            // Setup property change listeners
+            setupActionPropertyListeners(actionDiv.parentNode);
+            
+            updateStyleRules();
+        }
+        
+        function removeAction(event, ruleId, actionIndex) {
+            event.stopPropagation(); // Prevent panel from closing
+            
+            const ruleDiv = document.getElementById(ruleId);
+            const actions = ruleDiv.querySelectorAll('.action-item');
+            
+            if (actions.length <= 1) {
+                alert('A rule must have at least one action.');
+                return;
+            }
+            
+            const actionToRemove = Array.from(actions).find(a => 
+                parseInt(a.getAttribute('data-action-index')) === actionIndex
+            );
+            
+            if (actionToRemove) {
+                actionToRemove.remove();
+                updateStyleRules();
+            }
+        }
+        
+        function addCondition(ruleId) {
+            const ruleDiv = document.getElementById(ruleId);
+            const conditionsContainer = ruleDiv.querySelector('.conditions-container');
+            const addConditionBtn = conditionsContainer.querySelector('.add-condition-btn');
+            const existingConditions = conditionsContainer.querySelectorAll('.condition-group');
+            const newIndex = existingConditions.length;
+            
+            const conditionDiv = document.createElement('div');
+            conditionDiv.className = 'condition-group';
+            conditionDiv.setAttribute('data-condition-index', newIndex);
+            
+            conditionDiv.innerHTML = `
+                <span style="font-weight: bold;">AND</span>
+                <select class="condition-property">
+                    <option value="stroke-width">stroke-width</option>
+                    <option value="stroke">stroke color</option>
+                    <option value="fill">fill color</option>
+                    <option value="opacity">opacity</option>
+                    <option value="stroke-opacity">stroke-opacity</option>
+                    <option value="fill-opacity">fill-opacity</option>
+                    <option value="path-length">path length</option>
+                    <option value="animation-speed">animation speed</option>
+                </select>
+                <select class="condition-operator">
+                    <option value="=">=</option>
+                    <option value="<">&lt;</option>
+                    <option value=">">&gt;</option>
+                    <option value="<=">&le;</option>
+                    <option value=">=">&ge;</option>
+                </select>
+                <input type="text" class="condition-value" value="" placeholder="value">
+                <button class="remove-condition-btn" onclick="removeCondition(event, '${ruleId}', ${newIndex})">×</button>
+            `;
+            
+            conditionsContainer.insertBefore(conditionDiv, addConditionBtn);
+            
+            // Add event listeners
+            const inputs = conditionDiv.querySelectorAll('input, select');
+            inputs.forEach(input => {
+                input.addEventListener('change', updateStyleRules);
+            });
+            
+            updateStyleRules();
+        }
+        
+        function removeCondition(event, ruleId, conditionIndex) {
+            event.stopPropagation(); // Prevent panel from closing
+            
+            const ruleDiv = document.getElementById(ruleId);
+            const conditions = ruleDiv.querySelectorAll('.condition-group');
+            
+            if (conditions.length <= 1) {
+                alert('A rule must have at least one condition.');
+                return;
+            }
+            
+            const conditionToRemove = Array.from(conditions).find(c => 
+                parseInt(c.getAttribute('data-condition-index')) === conditionIndex
+            );
+            
+            if (conditionToRemove) {
+                conditionToRemove.remove();
+                updateStyleRules();
+            }
+        }
+        
+        function duplicateRule(ruleId) {
+            const ruleDiv = document.getElementById(ruleId);
+            
+            // Extract current rule data
+            const conditions = [];
+            const conditionGroups = ruleDiv.querySelectorAll('.condition-group');
+            conditionGroups.forEach(group => {
+                const property = group.querySelector('.condition-property').value;
+                const value = group.querySelector('.condition-value').value;
+                if (property && value) {
+                    conditions.push({ property, value });
+                }
+            });
+            
+            const actions = [];
+            const actionItems = ruleDiv.querySelectorAll('.action-item');
+            actionItems.forEach(item => {
+                const property = item.querySelector('.action-property').value;
+                const value = item.querySelector('.action-value').value;
+                if (property && value) {
+                    actions.push({ property, value });
+                }
+            });
+            
+            // Create duplicate rule
+            if (conditions.length > 0 && actions.length > 0) {
+                addRule(conditions, actions);
+            } else {
+                alert('Cannot duplicate incomplete rule. Please fill in all fields first.');
+            }
+        }
+        
+        function exportRules() {
+            if (styleRules.length === 0) {
+                alert('No rules to export.');
+                return;
+            }
+            
+            const dataStr = JSON.stringify(styleRules, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(dataBlob);
+            link.download = 'svg-animation-rules.json';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            console.log('Exported rules:', window.styleRules);
+        }
+        
+        function importRules(file) {
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const importedRules = JSON.parse(e.target.result);
+                    
+                    if (!Array.isArray(importedRules)) {
+                        throw new Error('Invalid file format: expected an array of rules');
+                    }
+                    
+                    // Validate rule structure
+                    const validRules = importedRules.filter(rule => 
+                        rule.property && rule.value && rule.targetProperty && rule.targetValue
+                    );
+                    
+                    if (validRules.length === 0) {
+                        throw new Error('No valid rules found in file');
+                    }
+                    
+                    // Clear existing rules and load imported ones
+                    clearAllRules();
+                    
+                    validRules.forEach(rule => {
+                        addRule(rule.property, rule.value, rule.targetProperty, rule.targetValue);
+                    });
+                    
+                    alert(`Successfully imported ${validRules.length} rule(s).`);
+                    console.log('Imported rules:', validRules);
+                    
+                } catch (error) {
+                    alert(`Failed to import rules: ${error.message}`);
+                    console.error('Import error:', error);
+                }
+            };
+            
+            reader.readAsText(file);
+            
+            // Reset the file input
+            document.getElementById('importFileInput').value = '';
+        }
+        
+        function clearAllRules() {
+            window.styleRules = [];
+            document.getElementById('rulesList').innerHTML = '';
+            saveRulesToStorage();
+            
+            // Apply empty rules to existing SVG if available
+            if (window.svgAnimator) {
+                window.svgAnimator.applyStyleRules(window.styleRules);
+            }
+        }
+        
+        function removeRule(ruleId) {
+            const ruleElement = document.getElementById(ruleId);
+            if (ruleElement) {
+                // Prevent removal of system rules
+                if (ruleElement.dataset.isSystem === 'true') {
+                    alert('System rules cannot be removed. You can edit them but not delete them.');
+                    return;
+                }
+                
+                ruleElement.remove();
+                updateStyleRules();
+                saveRulesToStorage();
+            }
+        }
+        
+        function showRuleMatches(ruleId) {
+            const ruleElement = document.getElementById(ruleId);
+            if (!ruleElement || !window.svgAnimator) {
+                return;
+            }
+            
+            // Get the rule conditions
+            const conditions = [];
+            const conditionGroups = ruleElement.querySelectorAll('.condition-group');
+            conditionGroups.forEach(group => {
+                const property = group.querySelector('.condition-property').value;
+                const operator = group.querySelector('.condition-operator')?.value || '=';
+                const value = group.querySelector('.condition-value').value.trim();
+                if (property && value) {
+                    conditions.push({ property, operator, value });
+                }
+            });
+            
+            if (conditions.length === 0) {
+                alert('This rule has no conditions to match.');
+                return;
+            }
+            
+            // Pause any current animation
+            if (window.svgAnimator.isAnimating) {
+                window.svgAnimator.pauseAnimation();
+            }
+            
+            // Show complete SVG first
+            window.svgAnimator.showComplete();
+            
+            // Find matching elements
+            const matchingElements = [];
+            window.svgAnimator.allElements.forEach(element => {
+                const allConditionsMet = conditions.every(condition => {
+                    // Use the same condition checking logic as applyStyleRulesToElement
+                    let elementValue = element.getAttribute(condition.property) || element.style[condition.property] || '';
+                    
+                    // Handle special cases for computed styles and dataset properties
+                    if (!elementValue) {
+                        const style = window.getComputedStyle(element);
+                        if (condition.property === 'stroke-width') {
+                            elementValue = style.strokeWidth || '';
+                        } else if (condition.property === 'opacity') {
+                            elementValue = style.opacity || '';
+                        } else if (condition.property === 'path-length') {
+                            elementValue = element.dataset.pathLength || '';
+                        }
+                    }
+                    
+                    // Normalize values for comparison
+                    const normalizedElementValue = elementValue.toString().trim();
+                    const normalizedConditionValue = condition.value.toString().trim();
+                    const operator = condition.operator || '=';
+                    
+                    // Handle numeric comparisons for specific properties
+                    if (['stroke-width', 'opacity', 'stroke-opacity', 'fill-opacity', 'path-length', 'animation-speed'].includes(condition.property)) {
+                        // Remove units (px, em, etc.) and parse as number
+                        const elementNum = parseFloat(normalizedElementValue.replace(/[^\d.-]/g, ''));
+                        const conditionNum = parseFloat(normalizedConditionValue.replace(/[^\d.-]/g, ''));
+                        
+                        if (!isNaN(elementNum) && !isNaN(conditionNum)) {
+                            switch (operator) {
+                                case '=': return Math.abs(elementNum - conditionNum) < 0.001;
+                                case '<': return elementNum < conditionNum;
+                                case '>': return elementNum > conditionNum;
+                                case '<=': return elementNum <= conditionNum;
+                                case '>=': return elementNum >= conditionNum;
+                                default: return Math.abs(elementNum - conditionNum) < 0.001;
+                            }
+                        }
+                        return false;
+                    }
+                    
+                    // String comparison (only supports equality)
+                    return normalizedElementValue === normalizedConditionValue;
+                });
+                
+                if (allConditionsMet) {
+                    matchingElements.push(element);
+                }
+            });
+            
+            // Highlight matching elements
+            if (matchingElements.length > 0) {
+                highlightElements(matchingElements);
+                console.log(`Rule "${ruleElement.querySelector('.rule-name-input').value}" matches ${matchingElements.length} elements`);
+            } else {
+                alert('No elements match this rule\'s conditions.');
+            }
+        }
+        
+        function highlightElements(elements) {
+            // Store original styles
+            const originalStyles = new Map();
+            
+            elements.forEach(element => {
+                // Store original styles
+                originalStyles.set(element, {
+                    stroke: element.style.stroke || element.getAttribute('stroke'),
+                    strokeWidth: element.style.strokeWidth || element.getAttribute('stroke-width'),
+                    fill: element.style.fill || element.getAttribute('fill'),
+                    opacity: element.style.opacity
+                });
+                
+                // Apply highlight styles
+                element.style.stroke = '#ff0000';
+                element.style.strokeWidth = '3';
+                element.style.fill = 'rgba(255, 0, 0, 0.2)';
+                element.style.opacity = '1';
+            });
+            
+            // Remove highlights after 3 seconds
+            setTimeout(() => {
+                elements.forEach(element => {
+                    const original = originalStyles.get(element);
+                    if (original) {
+                        element.style.stroke = original.stroke || '';
+                        element.style.strokeWidth = original.strokeWidth || '';
+                        element.style.fill = original.fill || '';
+                        element.style.opacity = original.opacity || '';
+                    }
+                });
+            }, 3000);
+        }
+        
+        function updateStyleRules() {
+            window.styleRules = [];
+            const ruleItems = document.querySelectorAll('.rule-item');
+            
+            ruleItems.forEach(item => {
+                const name = item.querySelector('.rule-name-input')?.value || 'Unnamed Rule';
+                const isSystem = item.dataset.isSystem === 'true';
+                
+                const conditions = [];
+                const conditionGroups = item.querySelectorAll('.condition-group');
+                
+                conditionGroups.forEach(group => {
+                    const property = group.querySelector('.condition-property').value;
+                    const operator = group.querySelector('.condition-operator')?.value || '=';
+                    const value = group.querySelector('.condition-value').value.trim();
+                    if (property && value) {
+                        conditions.push({ property, operator, value });
+                    }
+                });
+                
+                const actions = [];
+                const actionItems = item.querySelectorAll('.action-item');
+                
+                actionItems.forEach(actionItem => {
+                    const property = actionItem.querySelector('.action-property').value;
+                    const value = actionItem.querySelector('.action-value').value.trim();
+                    if (property && value) {
+                        actions.push({ property, value });
+                    }
+                });
+                
+                if (conditions.length > 0 && actions.length > 0) {
+                    window.styleRules.push({
+                        name,
+                        isSystem,
+                        conditions,
+                        actions
+                    });
+                }
+            });
+            
+            console.log('Updated style rules:', window.styleRules);
+            
+            // Save rules to storage
+            saveRulesToStorage();
+            
+            // Apply rules to existing SVG if available
+            if (window.svgAnimator) {
+                console.log('Re-applying rules to all elements...');
+                window.svgAnimator.applyStyleRules(window.styleRules);
+                // Recategorize paths when rules change (handwriting detection may have changed)
+                window.svgAnimator.recategorizePaths();
+                window.svgAnimator.updatePathStats();
+                console.log('Rules re-applied successfully');
+            }
+        }
+        
+        function applyStyleRulesToElement(element) {
+            // Get stroke-width for debugging
+            const strokeWidthAttr = element.getAttribute('stroke-width');
+            const strokeWidthStyle = element.style.strokeWidth;
+            const strokeWidthComputed = window.getComputedStyle(element).strokeWidth;
+            
+            console.log(`Checking element for rule application:`, {
+                tagName: element.tagName,
+                isHandwriting: element.dataset.isHandwriting,
+                pathLength: element.dataset.pathLength,
+                strokeWidthAttr: strokeWidthAttr,
+                strokeWidthStyle: strokeWidthStyle,
+                strokeWidthComputed: strokeWidthComputed
+            });
+            
+            window.styleRules.forEach(rule => {
+                // Check if all conditions are met
+                const allConditionsMet = rule.conditions.every(condition => {
+                    let elementValue = element.getAttribute(condition.property) || element.style[condition.property] || '';
+                    
+                    // Handle special cases for computed styles and dataset properties
+                    if (!elementValue) {
+                        const style = window.getComputedStyle(element);
+                        if (condition.property === 'stroke-width') {
+                            elementValue = style.strokeWidth || '';
+                            console.log(`  Getting stroke-width from computed style: "${elementValue}"`);
+                        } else if (condition.property === 'stroke') {
+                            elementValue = style.stroke || '';
+                            console.log(`  Getting stroke from computed style: "${elementValue}"`);
+                        } else if (condition.property === 'opacity') {
+                            elementValue = style.opacity || '';
+                        } else if (condition.property === 'path-length') {
+                            elementValue = element.dataset.pathLength || '';
+                        }
+                    } else {
+                        console.log(`  Found ${condition.property} value directly: "${elementValue}"`);
+                    }
+                    
+                    // Normalize values for comparison
+                    const normalizedElementValue = elementValue.toString().trim();
+                    const normalizedConditionValue = condition.value.toString().trim();
+                    const operator = condition.operator || '=';
+                    
+                    // Handle numeric comparisons for specific properties
+                    if (['stroke-width', 'opacity', 'stroke-opacity', 'fill-opacity', 'path-length', 'animation-speed'].includes(condition.property)) {
+                        // Remove units (px, em, etc.) and parse as number
+                        const elementNum = parseFloat(normalizedElementValue.replace(/[^\d.-]/g, ''));
+                        const conditionNum = parseFloat(normalizedConditionValue.replace(/[^\d.-]/g, ''));
+                        
+                        if (!isNaN(elementNum) && !isNaN(conditionNum)) {
+                            let result = false;
+                            switch (operator) {
+                                case '=': result = Math.abs(elementNum - conditionNum) < 0.001; break; // Handle floating point precision
+                                case '<': result = elementNum < conditionNum; break;
+                                case '>': result = elementNum > conditionNum; break;
+                                case '<=': result = elementNum <= conditionNum; break;
+                                case '>=': result = elementNum >= conditionNum; break;
+                                default: result = Math.abs(elementNum - conditionNum) < 0.001; break;
+                            }
+                            console.log(`  Numeric condition: ${elementNum} ${operator} ${conditionNum} = ${result} (original: "${normalizedElementValue}" vs "${normalizedConditionValue}")`);
+                            return result;
+                        } else {
+                            console.log(`  Failed to parse numeric values: element="${normalizedElementValue}" -> ${elementNum}, condition="${normalizedConditionValue}" -> ${conditionNum}`);
+                        }
+                    }
+                    
+                    // String comparison (only supports equality)
+                    let result = normalizedElementValue === normalizedConditionValue;
+                    
+                    // Special handling for color values (stroke, fill)
+                    if (!result && (condition.property === 'stroke' || condition.property === 'fill')) {
+                        // Try to normalize color values for comparison
+                        const normalizeColor = (color) => {
+                            if (color === 'black' || color === '#000' || color === '#000000' || 
+                                color === 'rgb(0, 0, 0)' || color === 'rgb(0,0,0)') {
+                                return '#000000';
+                            }
+                            if (color.startsWith('rgb(')) {
+                                // Convert rgb() to hex if needed
+                                const rgbMatch = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                                if (rgbMatch) {
+                                    const r = parseInt(rgbMatch[1]).toString(16).padStart(2, '0');
+                                    const g = parseInt(rgbMatch[2]).toString(16).padStart(2, '0');
+                                    const b = parseInt(rgbMatch[3]).toString(16).padStart(2, '0');
+                                    return `#${r}${g}${b}`;
+                                }
+                            }
+                            return color.toLowerCase();
+                        };
+                        
+                        const normalizedElementColor = normalizeColor(normalizedElementValue);
+                        const normalizedConditionColor = normalizeColor(normalizedConditionValue);
+                        result = normalizedElementColor === normalizedConditionColor;
+                        console.log(`  Color comparison: "${normalizedElementValue}" -> "${normalizedElementColor}" vs "${normalizedConditionValue}" -> "${normalizedConditionColor}" = ${result}`);
+                    }
+                    
+                    console.log(`  String condition: "${normalizedElementValue}" ${operator} "${normalizedConditionValue}" = ${result}`);
+                    return result;
+                });
+                
+                // Apply all actions if all conditions are met
+                if (allConditionsMet) {
+                    const conditionDesc = rule.conditions.map(c => `${c.property}=${c.value}`).join(' AND ');
+                    const actionDesc = rule.actions.map(a => `${a.property}=${a.value}`).join(' AND ');
+                    console.log(`Applying multi-action rule: ${conditionDesc} -> ${actionDesc}`);
+                    
+                    rule.actions.forEach(action => {
+                        if (action.property === 'stroke-width') {
+                            element.style.strokeWidth = action.value;
+                        } else if (action.property === 'opacity') {
+                            element.style.opacity = action.value;
+                        } else if (action.property === 'stroke') {
+                            element.style.stroke = action.value;
+                        } else if (action.property === 'fill') {
+                            element.style.fill = action.value;
+                        } else if (action.property === 'stroke-opacity') {
+                            element.style.strokeOpacity = action.value;
+                        } else if (action.property === 'fill-opacity') {
+                            element.style.fillOpacity = action.value;
+                        } else if (action.property === 'animation-speed') {
+                            element.dataset.animationSpeed = action.value;
+                            console.log(`HTML: Set animation speed multiplier ${action.value} on element:`, element);
+                        } else if (action.property === 'glow-effect') {
+                            // Apply glow effect with specified color and optional size
+                            const actionValue = action.value || '#ffd700'; // Default to gold
+                            
+                            // Parse color and size from value (format: "color" or "color,size")
+                            let glowColor = '#ffd700';
+                            let glowSize = 8; // Default size
+                            
+                            if (actionValue.includes(',')) {
+                                const parts = actionValue.split(',');
+                                glowColor = parts[0].trim();
+                                glowSize = parseInt(parts[1].trim()) || 8;
+                            } else {
+                                glowColor = actionValue;
+                            }
+                            
+                            // Use multiple drop-shadows with configurable size
+                            const size1 = Math.round(glowSize * 0.25);
+                            const size2 = Math.round(glowSize * 0.5);
+                            const size3 = glowSize;
+                            const size4 = Math.round(glowSize * 1.5);
+                            
+                            const filterValue = `drop-shadow(0 0 ${size1}px ${glowColor}) drop-shadow(0 0 ${size2}px ${glowColor}) drop-shadow(0 0 ${size3}px ${glowColor}) drop-shadow(0 0 ${size4}px ${glowColor})`;
+                            element.style.filter = filterValue;
+                            element.style.webkitFilter = filterValue; // For Safari
+                            
+                            console.log(`HTML: Applied glow effect with color ${glowColor} and size ${glowSize}px to element:`, element);
+                        }
+                    });
+                }
+            });
+        }
+        
+        // Initialize rules UI when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeHamburgerMenu();
+            initializeRulesUI();
+            initializeRecordingControls();
+            
+            // Ensure rules are applied after SVGAnimator is initialized
+            setTimeout(() => {
+                if (window.svgAnimator && window.styleRules.length > 0) {
+                    window.svgAnimator.applyStyleRules(window.styleRules);
+                    window.svgAnimator.recategorizePaths();
+                    window.svgAnimator.updatePathStats();
+                }
+                
+                // Refresh control values from localStorage settings
+                if (window.svgAnimator) {
+                    window.svgAnimator.refreshControlValues();
+                }
+            }, 1000);
+        });
+        
+        function initializeRecordingControls() {
+            // Validate the end pause number input
+            const endPauseValue = document.getElementById('recordEndPauseValue');
+            
+            endPauseValue.addEventListener('input', (e) => {
+                const value = Math.max(0, Math.min(3000, parseInt(e.target.value) || 0));
+                e.target.value = value;
+            });
+            
+            // No additional setup needed for checkbox - it works automatically
+        }
+    </script>
+</body>
+</html>

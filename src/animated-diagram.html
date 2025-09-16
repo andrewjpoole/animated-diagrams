@@ -21,11 +21,9 @@
         
         <div class="controls">
             <div class="control-group">
-                <label for="svgFile">SVG File:</label>
+                <label>SVG File:</label>
                 <div class="control-inputs">
-                    <select id="svgFile">
-                        <option value="aspire-wire-up.svg">Loading...</option>
-                    </select>
+                    <span id="svgFileName" class="svg-filename">No file loaded</span>
                     <button id="newSvgBtn" class="btn-secondary">New</button>
                     <button id="browseSvgBtn" class="btn-secondary">Browse...</button>
                     <input type="file" id="svgFileInput" accept=".svg" style="display: none;">
@@ -1827,7 +1825,7 @@
         // =====================================
         // Drawing Tools System
         // =====================================
-        function initializeDrawingTools() {
+        window.initializeDrawingTools = function initializeDrawingTools() {
             console.log('Initializing drawing tools...');
             let currentMode = 'select'; // 'select' or 'pen'
             let isDrawing = false;
@@ -2275,11 +2273,13 @@
                         const pathLength = currentPath.getTotalLength();
                         const strokeColor = currentPath.getAttribute('stroke') || '#000000';
                         
-                        // Set up for animation (CSS will override for drawn-path visibility)
-                        currentPath.style.strokeDasharray = pathLength;
-                        currentPath.style.transition = 'none';
+                        // Store path data but DON'T apply animation hiding styles to drawn paths
+                        // CSS class .drawn-path will keep them visible
                         currentPath.dataset.pathLength = pathLength;
                         currentPath.dataset.strokeColor = strokeColor;
+                        currentPath.dataset.elementType = 'path';
+                        
+                        console.log('Added drawn path to tracking, length:', pathLength, 'visible via CSS class');
                         currentPath.dataset.elementType = 'path';
                         currentPath.dataset.isHandwriting = 'true';
                         

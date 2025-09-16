@@ -22,14 +22,13 @@ class SVGAnimator {
         this.loadSettings();
         
         this.initializeControls();
-        this.populateSVGDropdown().then(() => {
-            // Load the appropriate SVG file
-            if (this.customSvgFile && this.selectedSVGFile === this.customSvgFile.name) {
-                this.loadSVGFromContent(this.customSvgFile.content, this.customSvgFile.name);
-            } else {
-                this.loadSVG(this.selectedSVGFile);
-            }
-        });
+        
+        // Load the appropriate SVG file
+        if (this.customSvgFile && this.selectedSVGFile === this.customSvgFile.name) {
+            this.loadSVGFromContent(this.customSvgFile.content, this.customSvgFile.name);
+        } else {
+            this.loadSVG(this.selectedSVGFile);
+        }
     }
 
     // Save animation settings to localStorage
@@ -129,74 +128,27 @@ class SVGAnimator {
         return availableFiles;
     }
 
-    // Populate SVG dropdown with available files
-    async populateSVGDropdown() {
-        const dropdown = document.getElementById('svgFile');
-        if (!dropdown) {
-            console.warn('SVG dropdown not found');
+    // Update SVG filename display
+    updateSVGFilenameDisplay() {
+        const filenameDisplay = document.getElementById('svgFileName');
+        if (!filenameDisplay) {
+            console.warn('SVG filename display not found');
             return;
         }
         
-        const availableFiles = await this.discoverSVGFiles();
-        
-        // Clear existing options
-        dropdown.innerHTML = '';
-        
-        // Add available files as options
-        availableFiles.forEach(filename => {
-            const option = document.createElement('option');
-            option.value = filename;
-            option.textContent = filename;
-            dropdown.appendChild(option);
-        });
-        
-        // Add custom file if it was previously loaded
-        if (this.customSvgFile) {
-            const option = document.createElement('option');
-            option.value = this.customSvgFile.name;
-            option.textContent = `📁 ${this.customSvgFile.name}`;
-            option.dataset.isCustomFile = 'true';
-            dropdown.appendChild(option);
+        if (this.currentSVGFilename) {
+            filenameDisplay.textContent = this.currentSVGFilename;
+        } else {
+            filenameDisplay.textContent = 'No file loaded';
         }
-        
-        // Set selected file from localStorage
-        if (this.customSvgFile && this.selectedSVGFile === this.customSvgFile.name) {
-            dropdown.value = this.selectedSVGFile;
-        } else if (availableFiles.includes(this.selectedSVGFile)) {
-            dropdown.value = this.selectedSVGFile;
-        } else if (availableFiles.length > 0) {
-            // If saved file not available, use first available file
-            this.selectedSVGFile = availableFiles[0];
-            dropdown.value = this.selectedSVGFile;
-        }
-        
-        // Add change event listener for auto-loading
-        dropdown.addEventListener('change', (e) => {
-            this.selectedSVGFile = e.target.value;
-            this.saveSettings();
-            
-            // Check if this is a custom file
-            const selectedOption = e.target.selectedOptions[0];
-            if (selectedOption && selectedOption.dataset.isCustomFile === 'true') {
-                // Load from stored custom file
-                if (this.customSvgFile && this.customSvgFile.name === this.selectedSVGFile) {
-                    this.loadSVGFromContent(this.customSvgFile.content, this.customSvgFile.name);
-                } else {
-                    console.warn('Custom file not found in memory, please browse again');
-                }
-            } else {
-                // Load from regular SVG files directory
-                this.loadSVG(this.selectedSVGFile);
-            }
-        });
-        
-        console.log(`SVG dropdown populated with ${availableFiles.length} files. Selected: ${this.selectedSVGFile}`);
     }
 
     // Handle SVG file selection from file browser
     async handleSvgFileSelection(event) {
         const file = event.target.files[0];
-        if (!file) return;
+        if (!file) {
+            return;
+        }
         
         console.log('Selected file:', file.name, 'from path:', file.webkitRelativePath || 'local file');
         
@@ -216,26 +168,9 @@ class SVGAnimator {
                 lastModified: file.lastModified
             };
             
-            // Add this file to the dropdown if it's not already there
-            const dropdown = document.getElementById('svgFile');
-            if (dropdown) {
-                // Check if this file is already in the dropdown
-                let existingOption = Array.from(dropdown.options).find(option => option.value === file.name);
-                
-                if (!existingOption) {
-                    // Add new option for this file
-                    const option = document.createElement('option');
-                    option.value = file.name;
-                    option.textContent = `📁 ${file.name}`;
-                    option.dataset.isCustomFile = 'true';
-                    dropdown.appendChild(option);
-                }
-                
-                // Select this file
-                dropdown.value = file.name;
-                this.selectedSVGFile = file.name;
-                this.saveSettings();
-            }
+            // Store selected filename
+            this.selectedSVGFile = file.name;
+            this.saveSettings();
             
             // Load the SVG content directly
             await this.loadSVGFromContent(fileContent, file.name);
@@ -262,12 +197,11 @@ class SVGAnimator {
             this.currentSVGFilename = filename;
             console.log(`Loading SVG from content: ${filename}`);
             
-            // Show loading indicator
+            // Show loading indicator if placeholder exists
             const placeholder = document.getElementById('svg-placeholder');
-            placeholder.innerHTML = '<p>Loading SVG...</p>';
-            
-            // Reset animation state
-            this.resetAnimation();
+            if (placeholder) {
+                placeholder.innerHTML = '<p>Loading SVG...</p>';
+            }
             
             // Clear undo/redo history for new file
             if (window.undoRedoManager) {
@@ -297,8 +231,19 @@ class SVGAnimator {
             // Initialize paths and animation
             this.initializePaths();
             
+            // Reset animation state after paths are initialized
+            this.resetAnimation();
+            
+            // Update filename display
+            this.updateSVGFilenameDisplay();
+            
             // Enable record button now that SVG is loaded
             this.enableRecordButton();
+            
+            // Reinitialize drawing tools for the new SVG
+            if (typeof window.initializeDrawingTools === 'function') {
+                window.initializeDrawingTools();
+            }
             
         } catch (error) {
             console.error('Error loading SVG from content:', error);
@@ -326,17 +271,6 @@ class SVGAnimator {
             
             // Load the new SVG content
             this.loadSVGFromContent(svgTemplate, newFilename);
-            
-            // Update dropdown to show the new file
-            const dropdown = document.getElementById('svgFile');
-            if (dropdown) {
-                // Add new option to dropdown
-                const option = document.createElement('option');
-                option.value = newFilename;
-                option.textContent = newFilename;
-                option.selected = true;
-                dropdown.appendChild(option);
-            }
             
             // Store as custom file
             this.customSvgFile = {
@@ -397,6 +331,9 @@ class SVGAnimator {
                 svgElement.id = 'animated-svg';
                 this.initializePaths();
                 
+                // Update filename display
+                this.updateSVGFilenameDisplay();
+                
                 // Enable record button now that SVG is loaded
                 this.enableRecordButton();
             } else {
@@ -452,23 +389,14 @@ class SVGAnimator {
                 const pathLength = element.getTotalLength();
                 const strokeColor = element.getAttribute('stroke') || '#000000';
                 
-                // Don't apply animation styling to user-drawn paths
-                const isUserDrawn = element.classList.contains('drawn-path');
-                
-                if (!isUserDrawn) {
-                    // Only apply animation hiding to original SVG paths, not user-drawn ones
-                    element.style.strokeDasharray = pathLength;
-                    element.style.strokeDashoffset = pathLength;
-                    element.style.transition = 'none';
-                } else {
-                    // For user-drawn paths, ensure they remain visible
-                    console.log(`Preserving visibility for user-drawn path: ${element.getAttribute('id')}`);
-                }
-                
+                // Store path length and other data but don't hide paths initially
                 element.dataset.pathLength = pathLength;
                 element.dataset.elementIndex = index;
                 element.dataset.strokeColor = strokeColor;
                 element.dataset.elementType = 'path';
+                
+                // Don't apply animation hiding styles here - paths should be visible when loaded
+                // Animation hiding will be applied when startAnimation() is called
                 
                 // Add click handler for path editor selection
                 element.addEventListener('click', (e) => {
@@ -486,16 +414,17 @@ class SVGAnimator {
                     this.structuralPaths.push(element);
                 }
             } else if (element.tagName.toLowerCase() === 'circle') {
-                // Initialize circles to be invisible
+                // Store circle data but don't hide circles initially
                 const fillColor = element.getAttribute('fill') || '#000000';
                 const strokeColor = element.getAttribute('stroke') || fillColor;
                 
-                element.style.opacity = '0';
-                element.style.transition = 'none';
                 element.dataset.elementIndex = index;
                 element.dataset.fillColor = fillColor;
                 element.dataset.strokeColor = strokeColor;
                 element.dataset.elementType = 'circle';
+                
+                // Don't hide circles initially - they should be visible when loaded
+                // Animation hiding will be applied when startAnimation() is called
                 
                 // Add click handler for path editor selection
                 element.addEventListener('click', (e) => {
@@ -919,6 +848,8 @@ class SVGAnimator {
                 element.style.transition = 'none';
                 if (element.dataset.elementType === 'path') {
                     const pathLength = element.dataset.pathLength;
+                    // Set up animation hiding: both dasharray and dashoffset
+                    element.style.strokeDasharray = pathLength;
                     element.style.strokeDashoffset = pathLength;
                     console.log(`Reset path ${index}: pathLength=${pathLength}, id=${element.id}`);
                 } else if (element.dataset.elementType === 'circle') {
@@ -969,14 +900,16 @@ class SVGAnimator {
             this.animationTimeout = null;
         }
         
-        // Reset all elements to invisible
+        // Reset all elements to visible (not hidden)
+        // This shows the complete SVG before animation starts
         this.sortedPaths.forEach(element => {
             element.style.transition = 'none';
             if (element.dataset.elementType === 'path') {
-                const pathLength = element.dataset.pathLength;
-                element.style.strokeDashoffset = pathLength;
+                // Make paths visible by removing animation dash styles
+                element.style.strokeDasharray = '';
+                element.style.strokeDashoffset = '';
             } else if (element.dataset.elementType === 'circle') {
-                element.style.opacity = '0';
+                element.style.opacity = '1';
             }
             // Clear any applied filters (like glow effects)
             element.style.filter = '';

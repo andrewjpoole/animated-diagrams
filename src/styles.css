@@ -199,6 +199,19 @@ h1 {
     background: white;
 }
 
+.svg-filename {
+    display: inline-block;
+    padding: 6px 10px;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 3px;
+    font-size: 13px;
+    color: #495057;
+    font-family: monospace;
+    min-width: 150px;
+    text-align: left;
+}
+
 /* =====================================
    Button System - Standardized Styles
    ===================================== */
@@ -1660,10 +1673,8 @@ button:focus {
    SVG Animation States
    ===================================== */
 
-/* Hide all paths and circles initially for animation */
+/* Paths are visible by default, hidden only during animation */
 #animated-svg path {
-    stroke-dasharray: 1000;
-    stroke-dashoffset: 1000;
     transition: none;
 }
 
@@ -1674,8 +1685,12 @@ button:focus {
     transition: none;
 }
 
+/* Hide paths only when animation is being prepared/running */
+#animated-svg.animating path:not(.drawn-path) {
+    transition: none;
+}
+
 #animated-svg circle {
-    opacity: 0;
     transition: none;
 }
 

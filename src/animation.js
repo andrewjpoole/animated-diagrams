@@ -269,6 +269,11 @@ class SVGAnimator {
             // Reset animation state
             this.resetAnimation();
             
+            // Clear undo/redo history for new file
+            if (window.undoRedoManager) {
+                window.undoRedoManager.clearHistory();
+            }
+            
             // Find the SVG container and replace content
             const svgContainer = document.querySelector('.svg-container');
             if (!svgContainer) {
@@ -438,12 +443,28 @@ class SVGAnimator {
         
         this.allElements.forEach((element, index) => {
             if (element.tagName.toLowerCase() === 'path') {
+                // Safety check: ensure element has getTotalLength method
+                if (typeof element.getTotalLength !== 'function') {
+                    console.warn('Path element missing getTotalLength method:', element);
+                    return;
+                }
+                
                 const pathLength = element.getTotalLength();
                 const strokeColor = element.getAttribute('stroke') || '#000000';
                 
-                element.style.strokeDasharray = pathLength;
-                element.style.strokeDashoffset = pathLength;
-                element.style.transition = 'none';
+                // Don't apply animation styling to user-drawn paths
+                const isUserDrawn = element.classList.contains('drawn-path');
+                
+                if (!isUserDrawn) {
+                    // Only apply animation hiding to original SVG paths, not user-drawn ones
+                    element.style.strokeDasharray = pathLength;
+                    element.style.strokeDashoffset = pathLength;
+                    element.style.transition = 'none';
+                } else {
+                    // For user-drawn paths, ensure they remain visible
+                    console.log(`Preserving visibility for user-drawn path: ${element.getAttribute('id')}`);
+                }
+                
                 element.dataset.pathLength = pathLength;
                 element.dataset.elementIndex = index;
                 element.dataset.strokeColor = strokeColor;
@@ -888,14 +909,31 @@ class SVGAnimator {
             this.isPaused = false;
             this.animateNextPath();
         } else if (!this.isAnimating) {
-            // Check if this is a restart (animation completed)
-            if (this.currentPathIndex >= this.sortedPaths.length) {
-                this.resetAnimation(); // Clear the SVG first
-            }
+            // Don't clear any paths - just reset their visual animation state
+            console.log('=== STARTING ANIMATION ===');
+            console.log('sortedPaths length:', this.sortedPaths.length);
+            console.log('First few paths:', this.sortedPaths.slice(0, 3).map(p => ({ id: p.id, class: p.className, elementType: p.dataset.elementType })));
             
+            // Reset visual styling of all paths to hidden state (but don't reset animation state)
+            this.sortedPaths.forEach((element, index) => {
+                element.style.transition = 'none';
+                if (element.dataset.elementType === 'path') {
+                    const pathLength = element.dataset.pathLength;
+                    element.style.strokeDashoffset = pathLength;
+                    console.log(`Reset path ${index}: pathLength=${pathLength}, id=${element.id}`);
+                } else if (element.dataset.elementType === 'circle') {
+                    element.style.opacity = '0';
+                }
+                // Clear any applied filters (like glow effects)
+                element.style.filter = '';
+                element.style.webkitFilter = '';
+            });
+            
+            // Now start the animation
             this.isAnimating = true;
             this.currentPathIndex = 0;
             this.currentSpeedMultiplier = 1.0; // Reset speed multiplier at start
+            console.log('About to call animateNextPath(), currentPathIndex:', this.currentPathIndex);
             this.animateNextPath();
         }
         
@@ -978,8 +1016,13 @@ class SVGAnimator {
     }
     
     animateNextPath() {
+        console.log(`=== animateNextPath called ===`);
+        console.log(`isAnimating: ${this.isAnimating}, isPaused: ${this.isPaused}, currentPathIndex: ${this.currentPathIndex}, sortedPaths.length: ${this.sortedPaths.length}`);
+        
         if (!this.isAnimating || this.isPaused || this.currentPathIndex >= this.sortedPaths.length) {
+            console.log('Exiting animateNextPath due to condition check');
             if (this.currentPathIndex >= this.sortedPaths.length) {
+                console.log('Animation completed - all paths animated');
                 this.isAnimating = false;
                 this.updateButtonStates();
                 this.updateProgressText();
@@ -988,6 +1031,7 @@ class SVGAnimator {
         }
         
         const currentElement = this.sortedPaths[this.currentPathIndex];
+        console.log(`Animating element ${this.currentPathIndex}:`, { id: currentElement.id, class: currentElement.className });
         const elementType = currentElement.dataset.elementType;
         const isHandwriting = currentElement.dataset.isHandwriting === 'true';
         
@@ -2160,6 +2204,21 @@ class SVGAnimator {
         this.highlightSelectedPaths();
     }
     
+    // Clear only user-drawn paths (not original SVG content)
+    clearUserDrawnPaths() {
+        const svgElement = document.querySelector('#animated-svg');
+        if (svgElement) {
+            const drawnPaths = svgElement.querySelectorAll('path.drawn-path');
+            console.log(`Removing ${drawnPaths.length} user-drawn paths for animation`);
+            
+            // Simply remove user-drawn paths from DOM
+            // Since user-drawn paths are not in the animation arrays, no need to rebuild
+            drawnPaths.forEach(path => path.remove());
+            
+            console.log('User-drawn paths removed, animation arrays unchanged');
+        }
+    }
+    
     highlightSelectedPaths() {
         // Clear existing highlights
         this.allElements.forEach(element => {
@@ -2445,6 +2504,11 @@ class SVGAnimator {
             `Are you sure you want to delete these ${count} paths?`;
         
         if (!confirm(message)) return;
+        
+        // Save state before deletion for undo/redo
+        if (window.undoRedoManager) {
+            window.undoRedoManager.saveState('delete_path', { selectedIndices: Array.from(this.selectedPaths) }, `Deleted ${count} path(s)`);
+        }
         
         const selectedIndices = Array.from(this.selectedPaths).sort((a, b) => b - a); // Sort in reverse order
         const deletedElements = [];

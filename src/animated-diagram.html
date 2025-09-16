@@ -46,6 +46,9 @@
                         <span class="pen-indicator" id="penIndicator"></span>
                         ✏️ <span id="penModeText">Pen 1</span>
                     </button>
+                    <div class="tool-mode-divider"></div>
+                    <button id="undoBtn" class="btn-secondary" title="Undo (Ctrl+Z)" disabled>↶ Undo</button>
+                    <button id="redoBtn" class="btn-secondary" title="Redo (Ctrl+Y)" disabled>↷ Redo</button>
                 </div>
             </div>
             
@@ -216,6 +219,418 @@
 
     <script src="animation.js"></script>
     <script>
+        // Undo/Redo Management System
+        class UndoRedoManager {
+            constructor(maxHistorySize = 50) {
+                this.history = [];
+                this.currentIndex = -1;
+                this.maxHistorySize = maxHistorySize;
+                this.isPerformingUndoRedo = false;
+            }
+            
+            // Save a state snapshot
+            saveState(action, data, description = '') {
+                if (this.isPerformingUndoRedo) return; // Don't save during undo/redo operations
+                
+                const currentSVGContent = this.getCurrentSVGContent();
+                console.log(`=== SAVING STATE ===`);
+                console.log(`Saving state: ${action} - ${description}`);
+                console.log(`Current index before save: ${this.currentIndex}`);
+                console.log(`History length before save: ${this.history.length}`);
+                console.log(`SVG content length: ${currentSVGContent ? currentSVGContent.length : 'null'}`);
+                
+                // Debug: Log what paths are currently available
+                const svgElement = document.querySelector('#animated-svg');
+                if (svgElement) {
+                    const allPaths = svgElement.querySelectorAll('path');
+                    const drawnPaths = svgElement.querySelectorAll('path.drawn-path');
+                    console.log(`Total paths in SVG: ${allPaths.length}`);
+                    console.log(`User-drawn paths: ${drawnPaths.length}`);
+                    drawnPaths.forEach((path, index) => {
+                        console.log(`  Drawn path ${index}:`, path.getAttribute('stroke'), path.getAttribute('class'));
+                    });
+                }
+                
+                // Remove any states after current index (when doing new action after undo)
+                this.history = this.history.slice(0, this.currentIndex + 1);
+                
+                // Create state snapshot
+                const state = {
+                    action,
+                    data: JSON.parse(JSON.stringify(data)), // Deep clone
+                    description,
+                    timestamp: Date.now(),
+                    svgContent: currentSVGContent
+                };
+                
+                this.history.push(state);
+                this.currentIndex++;
+                
+                console.log(`Current index after save: ${this.currentIndex}`);
+                console.log(`History length after save: ${this.history.length}`);
+                
+                // Keep history within size limit
+                if (this.history.length > this.maxHistorySize) {
+                    this.history.shift();
+                    this.currentIndex--;
+                }
+                
+                this.updateButtons();
+            }
+            
+            // Get current SVG content for restoration
+            getCurrentSVGContent() {
+                const svgElement = document.querySelector('#animated-svg');
+                if (!svgElement) {
+                    console.log('getCurrentSVGContent: No SVG element found');
+                    return null;
+                }
+                
+                // Get only the user-drawn paths (class='drawn-path'), not the entire SVG
+                const drawnPaths = svgElement.querySelectorAll('path.drawn-path');
+                console.log(`getCurrentSVGContent: Found ${drawnPaths.length} user-drawn paths`);
+                
+                // Debug: Log details of each path being saved
+                drawnPaths.forEach((path, index) => {
+                    console.log(`  Path ${index} - ID: ${path.id}, stroke: ${path.getAttribute('stroke')}, d: ${path.getAttribute('d')?.substring(0, 50)}...`);
+                });
+                
+                // Store the drawn paths as HTML strings
+                const pathsHTML = Array.from(drawnPaths).map(path => path.outerHTML);
+                console.log('Saving drawn paths HTML count:', pathsHTML.length);
+                if (pathsHTML.length > 0) {
+                    console.log('First path HTML sample:', pathsHTML[0].substring(0, 150) + '...');
+                }
+                
+                return JSON.stringify(pathsHTML);
+            }
+            
+            // Perform undo
+            undo() {
+                if (!this.canUndo()) {
+                    console.log('Cannot undo - canUndo() returned false');
+                    return false;
+                }
+                
+                this.isPerformingUndoRedo = true;
+                console.log(`=== UNDO ===`);
+                console.log(`Current index before undo: ${this.currentIndex}`);
+                console.log(`History length: ${this.history.length}`);
+                
+                // Debug: Check current state before undo
+                const currentSvg = document.querySelector('#animated-svg');
+                if (currentSvg) {
+                    const currentDrawnPaths = currentSvg.querySelectorAll('path.drawn-path');
+                    console.log(`Current drawn paths count BEFORE undo: ${currentDrawnPaths.length}`);
+                }
+                
+                // With "save after action" model, current index points to the state WITH the last action
+                // To undo, we need to go to the previous state (without the last action)
+                this.currentIndex--;
+                
+                if (this.currentIndex >= 0) {
+                    const state = this.history[this.currentIndex];
+                    console.log(`Restoring to index ${this.currentIndex}: ${state.action} - ${state.description}`);
+                    this.restoreStateContent(state.svgContent);
+                } else {
+                    // If we've gone back to before the first state, restore empty state
+                    console.log('Restoring to empty state (before first action)');
+                    this.clearUserDrawnPaths();
+                    
+                    // Refresh the SVG animator to update path editor with empty state
+                    this.refreshSVGAnimator();
+                }
+                
+                // Debug: Check state after undo
+                if (currentSvg) {
+                    const afterDrawnPaths = currentSvg.querySelectorAll('path.drawn-path');
+                    console.log(`Current drawn paths count AFTER undo: ${afterDrawnPaths.length}`);
+                }
+                
+                console.log(`Current index after undo: ${this.currentIndex}`);
+                this.updateButtons();
+                
+                setTimeout(() => {
+                    this.isPerformingUndoRedo = false;
+                }, 100);
+                
+                return true;
+            }
+            
+            // Restore SVG content directly
+            restoreStateContent(svgContent) {
+                console.log('restoreStateContent called with:', svgContent ? svgContent.substring(0, 200) + '...' : 'null');
+                
+                if (!svgContent) {
+                    console.log('No SVG content to restore, clearing user-drawn paths');
+                    this.clearUserDrawnPaths();
+                    this.refreshSVGAnimator();
+                    return;
+                }
+                
+                // Find the current SVG element
+                const currentSvg = document.querySelector('#animated-svg');
+                if (!currentSvg) {
+                    console.log('No current SVG element found');
+                    return;
+                }
+                
+                try {
+                    // Parse the saved drawn paths
+                    const pathsHTML = JSON.parse(svgContent);
+                    console.log(`=== RESTORING STATE ===`);
+                    console.log(`Restoring ${pathsHTML.length} user-drawn paths`);
+                    
+                    // Remove all current user-drawn paths
+                    this.clearUserDrawnPaths();
+                    
+                    // Re-add the saved user-drawn paths
+                    pathsHTML.forEach((pathHTML, index) => {
+                        try {
+                            console.log(`Restoring path ${index}: ${pathHTML.substring(0, 100)}...`);
+                            const tempDiv = document.createElement('div');
+                            tempDiv.innerHTML = pathHTML;
+                            const pathElement = tempDiv.querySelector('path');
+                            if (pathElement) {
+                                console.log(`  - Path ${index} class: ${pathElement.getAttribute('class')}`);
+                                console.log(`  - Path ${index} stroke: ${pathElement.getAttribute('stroke')}`);
+                                console.log(`  - Path ${index} d: ${pathElement.getAttribute('d')?.substring(0, 50)}...`);
+                                
+                                // Create a proper SVG path element to ensure it has all necessary methods
+                                const newPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                                
+                                // Copy all attributes from the saved path
+                                for (let i = 0; i < pathElement.attributes.length; i++) {
+                                    const attr = pathElement.attributes[i];
+                                    newPath.setAttribute(attr.name, attr.value);
+                                }
+                                
+                                currentSvg.appendChild(newPath);
+                                console.log(`  - Successfully restored path ${index}`);
+                                
+                                // Debug: Check if the restored path has the correct class and styling
+                                console.log(`  - Path ${index} final class: "${newPath.getAttribute('class')}"`);
+                                console.log(`  - Path ${index} computed style dasharray:`, window.getComputedStyle(newPath).strokeDasharray);
+                                console.log(`  - Path ${index} computed style dashoffset:`, window.getComputedStyle(newPath).strokeDashoffset);
+                            } else {
+                                console.warn(`  - No path element found in HTML for index ${index}`);
+                            }
+                        } catch (error) {
+                            console.error(`Error restoring path ${index}:`, error);
+                        }
+                    });
+                    
+                    console.log('After restoration - user-drawn paths count:', currentSvg.querySelectorAll('path.drawn-path').length);
+                    
+                } catch (error) {
+                    console.error('Error parsing saved content:', error);
+                    console.log('Falling back to clearing user-drawn paths');
+                    this.clearUserDrawnPaths();
+                }
+                
+                // Refresh the SVG animator if it exists
+                this.refreshSVGAnimator();
+                
+                // Refresh the SVG element reference for drawing tools
+                if (window.refreshSVGElementReference) {
+                    window.refreshSVGElementReference();
+                }
+            }
+            
+            // Clear only user-drawn paths (not original SVG content)
+            clearUserDrawnPaths() {
+                const svgElement = document.querySelector('#animated-svg');
+                if (svgElement) {
+                    const drawnPaths = svgElement.querySelectorAll('path.drawn-path');
+                    console.log(`Clearing ${drawnPaths.length} user-drawn paths`);
+                    drawnPaths.forEach(path => path.remove());
+                }
+            }
+            
+            // Perform redo
+            redo() {
+                if (!this.canRedo()) return false;
+                
+                this.isPerformingUndoRedo = true;
+                console.log(`=== REDO ===`);
+                console.log(`Current index before redo: ${this.currentIndex}`);
+                console.log(`History length: ${this.history.length}`);
+                
+                // With "save after action" model, we need to move forward and restore that state
+                this.currentIndex++;
+                const state = this.history[this.currentIndex];
+                console.log(`Redoing to index ${this.currentIndex}: ${state.action} - ${state.description}`);
+                
+                this.restoreStateContent(state.svgContent);
+                console.log(`Current index after redo: ${this.currentIndex}`);
+                this.updateButtons();
+                
+                setTimeout(() => {
+                    this.isPerformingUndoRedo = false;
+                }, 100);
+                
+                return true;
+            }
+            
+            // Restore a previous state
+            restoreState(state) {
+                try {
+                    switch (state.action) {
+                        case 'draw_path':
+                            this.restoreDrawPath(state.data);
+                            break;
+                        case 'delete_path':
+                            this.restoreDeletePath(state.data);
+                            break;
+                        case 'modify_svg':
+                            this.restoreSVGContent(state.svgContent);
+                            break;
+                        case 'pen_config':
+                            this.restorePenConfig(state.data);
+                            break;
+                        default:
+                            console.warn(`Unknown action type: ${state.action}`);
+                    }
+                } catch (error) {
+                    console.error('Error restoring state:', error);
+                }
+            }
+            
+            // Restore drawing actions
+            restoreDrawPath(data) {
+                const svgElement = document.querySelector('#animated-svg');
+                if (!svgElement) return;
+                
+                if (data.type === 'add') {
+                    // Remove the path that was added
+                    const pathElement = svgElement.querySelector(`path[data-path-id="${data.pathId}"]`);
+                    if (pathElement) {
+                        pathElement.remove();
+                        this.refreshSVGAnimator();
+                    }
+                } else if (data.type === 'remove') {
+                    // Re-add the path that was removed
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = data.pathContent;
+                    const pathElement = tempDiv.firstChild;
+                    if (pathElement) {
+                        svgElement.appendChild(pathElement);
+                        this.refreshSVGAnimator();
+                    }
+                }
+            }
+            
+            // Restore deletion actions
+            restoreDeletePath(data) {
+                // Inverse of restoreDrawPath
+                this.restoreDrawPath({
+                    type: data.type === 'add' ? 'remove' : 'add',
+                    pathId: data.pathId,
+                    pathContent: data.pathContent
+                });
+            }
+            
+            // Restore SVG content
+            restoreSVGContent(svgContent) {
+                if (!svgContent) return;
+                
+                const svgContainer = document.querySelector('.svg-container');
+                if (svgContainer) {
+                    svgContainer.innerHTML = svgContent;
+                    this.refreshSVGAnimator();
+                }
+            }
+            
+            // Restore pen configuration
+            restorePenConfig(data) {
+                if (window.penConfigs && data.penConfigs) {
+                    window.penConfigs = JSON.parse(JSON.stringify(data.penConfigs));
+                    if (window.renderPenConfigs) {
+                        window.renderPenConfigs();
+                    }
+                    if (window.savePensToStorage) {
+                        window.savePensToStorage();
+                    }
+                }
+            }
+            
+            // Refresh SVGAnimator after changes
+            refreshSVGAnimator() {
+                if (window.svgAnimator) {
+                    window.svgAnimator.initializePaths();
+                    window.svgAnimator.recategorizePaths();
+                    window.svgAnimator.updatePathStats();
+                    
+                    // Refresh path editor if it's visible
+                    if (window.svgAnimator.refreshPathList) {
+                        window.svgAnimator.refreshPathList();
+                    }
+                    
+                    // Clear any selections since paths may have changed
+                    if (window.svgAnimator.clearPathSelection) {
+                        window.svgAnimator.clearPathSelection();
+                    }
+                }
+            }
+            
+            // Check if undo is possible
+            canUndo() {
+                // We can undo if there's at least one state saved (currentIndex >= 0)
+                // When currentIndex = 0, we can undo to empty state (before first action)
+                return this.currentIndex >= 0;
+            }
+            
+            // Check if redo is possible
+            canRedo() {
+                return this.currentIndex < this.history.length - 1;
+            }
+            
+            // Update button states
+            updateButtons() {
+                const undoBtn = document.getElementById('undoBtn');
+                const redoBtn = document.getElementById('redoBtn');
+                
+                if (undoBtn) {
+                    undoBtn.disabled = !this.canUndo();
+                    undoBtn.title = this.canUndo() ? 
+                        `Undo: ${this.history[this.currentIndex]?.description || 'action'}` : 
+                        'Nothing to undo';
+                }
+                
+                if (redoBtn) {
+                    redoBtn.disabled = !this.canRedo();
+                    redoBtn.title = this.canRedo() ? 
+                        `Redo: ${this.history[this.currentIndex + 1]?.description || 'action'}` : 
+                        'Nothing to redo';
+                }
+            }
+            
+            // Clear history
+            clear() {
+                this.history = [];
+                this.currentIndex = -1;
+                this.updateButtons();
+            }
+            
+            // Alias for clear() for better naming
+            clearHistory() {
+                this.clear();
+            }
+            
+            // Get current state info for debugging
+            getStateInfo() {
+                return {
+                    historyLength: this.history.length,
+                    currentIndex: this.currentIndex,
+                    canUndo: this.canUndo(),
+                    canRedo: this.canRedo()
+                };
+            }
+        }
+        
+        // Global undo/redo manager
+        window.undoRedoManager = new UndoRedoManager();
+        
         // Hamburger menu functionality
         function initializeHamburgerMenu() {
             const hamburgerBtn = document.getElementById('hamburgerBtn');
@@ -262,6 +677,53 @@
                     }
                 }
             });
+        }
+        
+        // Undo/Redo functionality initialization
+        function initializeUndoRedo() {
+            console.log('Initializing undo/redo system...');
+            
+            const undoBtn = document.getElementById('undoBtn');
+            const redoBtn = document.getElementById('redoBtn');
+            
+            if (undoBtn) {
+                undoBtn.addEventListener('click', () => {
+                    console.log('Undo button clicked');
+                    window.undoRedoManager.undo();
+                });
+            }
+            
+            if (redoBtn) {
+                redoBtn.addEventListener('click', () => {
+                    console.log('Redo button clicked');
+                    window.undoRedoManager.redo();
+                });
+            }
+            
+            // Keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                // Check if we're in an input field
+                const isInputField = e.target.tagName === 'INPUT' || 
+                                   e.target.tagName === 'TEXTAREA' || 
+                                   e.target.contentEditable === 'true';
+                
+                if (!isInputField) {
+                    if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+                        e.preventDefault();
+                        window.undoRedoManager.undo();
+                    } else if (e.ctrlKey && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+                        e.preventDefault();
+                        window.undoRedoManager.redo();
+                    }
+                }
+            });
+            
+            // Initialize button states
+            console.log('UndoRedoManager instance:', window.undoRedoManager);
+            console.log('UndoRedoManager methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(window.undoRedoManager)));
+            window.undoRedoManager.updateButtons();
+            
+            console.log('Undo/redo system initialized successfully');
         }
         
         // Style override rules functionality
@@ -1255,6 +1717,7 @@
             initializeRulesUI();
             initializeRecordingControls();
             initializeZoomControls();
+            initializeUndoRedo();
             
             // Initialize SVG pan and zoom after SVGAnimator is ready
             setTimeout(() => {
@@ -1274,6 +1737,11 @@
                 // Refresh control values from localStorage settings
                 if (window.svgAnimator) {
                     window.svgAnimator.refreshControlValues();
+                }
+                
+                // Save initial state for undo/redo after everything is loaded
+                if (window.undoRedoManager) {
+                    window.undoRedoManager.saveState('initial', {}, 'Initial state');
                 }
             }, 1000);
         });
@@ -1346,6 +1814,16 @@
         let startMouseX = 0;
         let startMouseY = 0;
         
+        // Function to refresh SVG element reference (used after state restoration)
+        function refreshSVGElementReference() {
+            svgElement = document.getElementById('animated-svg');
+            svgContainer = document.querySelector('.svg-container');
+            console.log('Refreshed SVG element reference:', svgElement);
+        }
+        
+        // Make function globally accessible
+        window.refreshSVGElementReference = refreshSVGElementReference;
+        
         // =====================================
         // Drawing Tools System
         // =====================================
@@ -1403,10 +1881,15 @@
                 return penConfigs;
             }
             
-            function savePensToStorage() {
+            function savePensToStorage(actionDescription = null) {
                 try {
                     localStorage.setItem(PEN_STORAGE_KEY, JSON.stringify(penConfigs));
                     console.log('Saved pens to storage:', penConfigs);
+                    
+                    // Save state for undo/redo when this is a user action
+                    if (actionDescription && window.undoRedoManager) {
+                        window.undoRedoManager.saveState('pen_config', { penConfigs: JSON.parse(JSON.stringify(penConfigs)) }, actionDescription);
+                    }
                 } catch (error) {
                     console.warn('Failed to save pens to storage:', error);
                 }
@@ -1423,7 +1906,7 @@
                 
                 penConfigs[newPenId] = newPen;
                 renderPenConfigs();
-                savePensToStorage();
+                savePensToStorage(`Added pen "${newPen.name}"`);
                 
                 console.log('Added new pen:', newPenId, newPen);
                 return newPenId;
@@ -1437,6 +1920,7 @@
                 
                 const penIdNum = parseInt(penId);
                 if (penConfigs[penIdNum]) {
+                    const removedPenName = penConfigs[penIdNum].name;
                     delete penConfigs[penIdNum];
                     
                     // If we deleted the current pen, switch to the first available pen
@@ -1446,7 +1930,7 @@
                     }
                     
                     renderPenConfigs();
-                    savePensToStorage();
+                    savePensToStorage(`Removed pen "${removedPenName}"`);
                     console.log('Removed pen:', penId);
                 }
             }
@@ -1454,8 +1938,9 @@
             function updatePenConfig(penId, property, value) {
                 const penIdNum = parseInt(penId);
                 if (penConfigs[penIdNum]) {
+                    const oldValue = penConfigs[penIdNum][property];
                     penConfigs[penIdNum][property] = value;
-                    savePensToStorage();
+                    savePensToStorage(`Updated pen "${penConfigs[penIdNum].name}" ${property} from ${oldValue} to ${value}`);
                     updatePenIndicator(); // Update visual indicator when pen changes
                 }
             }
@@ -1677,8 +2162,12 @@
                 
                 // Get coordinates relative to SVG element specifically
                 const svgRect = svgElement.getBoundingClientRect();
-                const relativeX = e.clientX - svgRect.left;
-                const relativeY = e.clientY - svgRect.top;
+                let relativeX = e.clientX - svgRect.left;
+                let relativeY = e.clientY - svgRect.top;
+                
+                // Account for CSS transform (pan and zoom)
+                relativeX = (relativeX - panX) / scale;
+                relativeY = (relativeY - panY) / scale;
                 
                 // Convert to SVG coordinate system without clamping
                 const svgX = viewBoxX + (relativeX / svgRect.width) * viewBoxWidth;
@@ -1723,8 +2212,12 @@
                 
                 // Get coordinates relative to SVG
                 const svgRect = svgElement.getBoundingClientRect();
-                const relativeX = e.clientX - svgRect.left;
-                const relativeY = e.clientY - svgRect.top;
+                let relativeX = e.clientX - svgRect.left;
+                let relativeY = e.clientY - svgRect.top;
+                
+                // Account for CSS transform (pan and zoom)
+                relativeX = (relativeX - panX) / scale;
+                relativeY = (relativeY - panY) / scale;
                 
                 // Convert to SVG coordinate system without clamping
                 const svgX = viewBoxX + (relativeX / svgRect.width) * viewBoxWidth;
@@ -1816,6 +2309,12 @@
                         window.svgAnimator.updatePathStats();
                         if (window.svgAnimator.pathEditorVisible) {
                             window.svgAnimator.refreshPathList();
+                        }
+                        
+                        // Save state after the path is completed and added to the system
+                        console.log('Saving state after path completion');
+                        if (window.undoRedoManager) {
+                            window.undoRedoManager.saveState('draw_path', { type: 'add', pathId: currentPath.id }, 'Path drawn');
                         }
                     }
                 } else if (currentPath) {

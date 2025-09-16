@@ -106,5 +106,7 @@ The system automatically detects and animates all paths in any SVG file, making 
 * dark mode
 * tidy up console logs, have a switch
 
++ host in static site / github page etc
+
 * ability to set a viewport to smoothly navigate to, again probably xml comments
 * live presentatino mode? sans poewrpoint?

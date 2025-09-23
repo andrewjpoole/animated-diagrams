@@ -23,7 +23,7 @@ public class AppSettings
     public string DarkCanvasColor { get; set; } = "#2b2b2b"; // configurable dark background
 
     // Smoothing strategy for path drawing
-    public SmoothingType SmoothingStrategy { get; set; } = SmoothingType.QuadraticBezier;
+    public SmoothingType SmoothingStrategy { get; set; } = SmoothingType.Linear;
     // If true, aggressively smooth straight lines on mouseup
     public bool ExtremeAutoSmoothingOfStraightishLines { get; set; } = false;
 
@@ -38,7 +38,7 @@ public class RecordingOptions
     public int Fps { get; set; } = 30;
     public int Width { get; set; } = 1920;
     public int Height { get; set; } = 1080;
-    public int Quality { get; set; } = 90; // percent
+    public int Quality { get; set; } = 90; // bitrate quality for video encoding
     public int EndPauseMs { get; set; } = 1000;
     public bool InsertInitialThumbnail { get; set; } = true;
     public int PreAnimationBlankMs { get; set; } = 500;

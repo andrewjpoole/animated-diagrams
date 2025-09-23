@@ -686,52 +686,52 @@
         _pendingCircle = false;
     }
 
-        // Helper: get all points from a path (for drag-move)
-        List<(double x, double y)> GetPathPoints(SvgPathItem path)
+    // Helper: get all points from a path (for drag-move)
+    List<(double x, double y)> GetPathPoints(SvgPathItem path)
+    {
+        var pts = new List<(double x, double y)>();
+        var tokens = path.D.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        int i = 0;
+        while (i < tokens.Length)
         {
-            var pts = new List<(double x, double y)>();
-            var tokens = path.D.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            int i = 0;
-            while (i < tokens.Length)
+            var cmd = tokens[i];
+            if (cmd == "M" || cmd == "L")
             {
-                var cmd = tokens[i];
-                if (cmd == "M" || cmd == "L")
+                if (i + 2 < tokens.Length && double.TryParse(tokens[i + 1], out var x) && double.TryParse(tokens[i + 2], out var y))
                 {
-                    if (i + 2 < tokens.Length && double.TryParse(tokens[i + 1], out var x) && double.TryParse(tokens[i + 2], out var y))
-                    {
-                        pts.Add((x, y));
-                        i += 3;
-                    }
-                    else i++;
-                }
-                else if (cmd == "Q")
-                {
-                    if (i + 4 < tokens.Length && double.TryParse(tokens[i + 1], out var cx) && double.TryParse(tokens[i + 2], out var cy)
-                        && double.TryParse(tokens[i + 3], out var x) && double.TryParse(tokens[i + 4], out var y))
-                    {
-                        pts.Add((cx, cy));
-                        pts.Add((x, y));
-                        i += 5;
-                    }
-                    else i++;
-                }
-                else if (cmd == "C")
-                {
-                    if (i + 6 < tokens.Length && double.TryParse(tokens[i + 1], out var cx1) && double.TryParse(tokens[i + 2], out var cy1)
-                        && double.TryParse(tokens[i + 3], out var cx2) && double.TryParse(tokens[i + 4], out var cy2)
-                        && double.TryParse(tokens[i + 5], out var x) && double.TryParse(tokens[i + 6], out var y))
-                    {
-                        pts.Add((cx1, cy1));
-                        pts.Add((cx2, cy2));
-                        pts.Add((x, y));
-                        i += 7;
-                    }
-                    else i++;
+                    pts.Add((x, y));
+                    i += 3;
                 }
                 else i++;
             }
-            return pts;
+            else if (cmd == "Q")
+            {
+                if (i + 4 < tokens.Length && double.TryParse(tokens[i + 1], out var cx) && double.TryParse(tokens[i + 2], out var cy)
+                    && double.TryParse(tokens[i + 3], out var x) && double.TryParse(tokens[i + 4], out var y))
+                {
+                    pts.Add((cx, cy));
+                    pts.Add((x, y));
+                    i += 5;
+                }
+                else i++;
+            }
+            else if (cmd == "C")
+            {
+                if (i + 6 < tokens.Length && double.TryParse(tokens[i + 1], out var cx1) && double.TryParse(tokens[i + 2], out var cy1)
+                    && double.TryParse(tokens[i + 3], out var cx2) && double.TryParse(tokens[i + 4], out var cy2)
+                    && double.TryParse(tokens[i + 5], out var x) && double.TryParse(tokens[i + 6], out var y))
+                {
+                    pts.Add((cx1, cy1));
+                    pts.Add((cx2, cy2));
+                    pts.Add((x, y));
+                    i += 7;
+                }
+                else i++;
+            }
+            else i++;
         }
+        return pts;
+    }
     
     bool PathIntersectsRect(SvgPathItem path, double minX, double minY, double maxX, double maxY)
     {

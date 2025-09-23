@@ -4,26 +4,88 @@
 
 <div class="animation-recording-panel">
     <h3>Animation & Recording</h3>
-    <label>Animation Speed <input type="number" @bind="AnimationSpeed" step="0.1" /></label>
+    <label style="display:flex;align-items:center;gap:10px;">Animation Duration (ms)
+        <input type="range" min="20" max="2000" step="10" style="width:180px;" @bind="AnimationSpeed" />
+        <input type="number" min="20" max="2000" step="1" style="width:70px;" @bind="AnimationSpeed" />
+    </label>
     <div style="margin-bottom:12px;">
         <button class="app-btn" @onclick="Play">Start Animation</button>
         <button class="app-btn" @onclick="Reset">Reset</button>
         <button class="app-btn" @onclick="ShowAll">Show All</button>
     </div>
     <h4>Recording</h4>
-    <label>FPS <input type="number" @bind-value="Options.Fps" /></label>
-    <label>Width <input type="number" @bind-value="Options.Width" /></label>
-    <label>Height <input type="number" @bind-value="Options.Height" /></label>
-    <label>Quality <input type="number" @bind-value="Options.Quality" /></label>
-    <label>End Pause (ms) <input type="number" @bind-value="Options.EndPauseMs" /></label>
-    <label>Thumbnail Start <input type="checkbox" @bind-value="Options.InsertInitialThumbnail" /></label>
-    <label>Pre Blank (ms) <input type="number" @bind-value="Options.PreAnimationBlankMs" /></label>
-    <button class="app-btn" @onclick="StartRecording">Record</button>
+    @if (!editingRecordingSettings)
+    {
+        <div class="recording-settings-view" style="display:flex;flex-direction:column;gap:4px;max-width:260px;">
+            <div>@Options.Width x @Options.Height @(@Options.Fps)fps, quality @Options.Quality Mb/s</div>
+            <div>End Pause (ms): @Options.EndPauseMs</div>
+            <div>Thumbnail Start: @(Options.InsertInitialThumbnail ? "Yes" : "No")</div>
+            <div>Pre Blank (ms): @Options.PreAnimationBlankMs</div>
+            <div style="display:flex;gap:8px;margin-top:6px;">
+                <button class="app-btn" @onclick="StartRecording">Record</button>
+                <button class="app-btn" @onclick="() => StartEditRecordingSettings()" title="Edit recording settings">✎</button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="recording-settings-edit" style="display:flex;flex-direction:column;gap:4px;max-width:260px;">
+            <label>FPS <input type="number" style="width:70px;" @bind-value="editOptions.Fps" /></label>
+            <label>Width <input type="number" style="width:70px;" @bind-value="editOptions.Width" /></label>
+            <label>Height <input type="number" style="width:70px;" @bind-value="editOptions.Height" /></label>
+            <label>Quality <input type="number" style="width:70px;" @bind-value="editOptions.Quality" /></label>
+            <label>End Pause (ms) <input type="number" style="width:70px;" @bind-value="editOptions.EndPauseMs" /></label>
+            <label>Thumbnail Start <input type="checkbox" style="width:18px;" @bind-value="editOptions.InsertInitialThumbnail" /></label>
+            <label>Pre Blank (ms) <input type="number" style="width:70px;" @bind-value="editOptions.PreAnimationBlankMs" /></label>
+            <div style="display:flex;gap:8px;">
+                <button class="app-btn" @onclick="SaveRecordingSettings" title="Done">✔</button>
+                <button class="app-btn" @onclick="CancelRecordingSettings" title="Cancel Edit">✖</button>
+            </div>
+        </div>
+    }    
 </div>
 
 @code {
-    private double AnimationSpeed = 5.0;
+    private double AnimationSpeed = 200;
     private RecordingOptions Options = new();
+    private RecordingOptions editOptions = new();
+    private bool editingRecordingSettings = false;
+    void StartEditRecordingSettings()
+    {
+        // Copy current options to editOptions
+        editOptions = new RecordingOptions
+        {
+            Fps = Options.Fps,
+            Width = Options.Width,
+            Height = Options.Height,
+            Quality = Options.Quality,
+            EndPauseMs = Options.EndPauseMs,
+            InsertInitialThumbnail = Options.InsertInitialThumbnail,
+            PreAnimationBlankMs = Options.PreAnimationBlankMs
+        };
+        editingRecordingSettings = true;
+    }
+
+    void SaveRecordingSettings()
+    {
+        // Copy from editOptions to Options
+        Options = new RecordingOptions
+        {
+            Fps = editOptions.Fps,
+            Width = editOptions.Width,
+            Height = editOptions.Height,
+            Quality = editOptions.Quality,
+            EndPauseMs = editOptions.EndPauseMs,
+            InsertInitialThumbnail = editOptions.InsertInitialThumbnail,
+            PreAnimationBlankMs = editOptions.PreAnimationBlankMs
+        };
+        editingRecordingSettings = false;
+    }
+
+    void CancelRecordingSettings()
+    {
+        editingRecordingSettings = false;
+    }
 
     async Task Play()
     {

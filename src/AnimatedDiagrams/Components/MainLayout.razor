@@ -1,0 +1,121 @@
+@inherits LayoutComponentBase
+@using AnimatedDiagrams.Components
+@using AnimatedDiagrams.Models
+
+<div class="layout-root @(SidebarExpanded ? "sidebar-expanded" : "sidebar-collapsed")" tabindex="0" @onkeydown="OnKey">
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <button class="app-btn hamburger" title="Toggle" @onclick="ToggleSidebar">☰</button>
+        </div>
+        @if (SidebarExpanded)
+        {
+            <SidebarSection Title="File" StartCollapsed="false">
+                <FileControls />
+            </SidebarSection>
+            <SidebarSection Title="Pens" Resizable="true">
+                <PensPanel />
+            </SidebarSection>
+            <SidebarSection Title="Paths" StartCollapsed="false" Resizable="true">
+                <PathEditor />
+            </SidebarSection>
+            <SidebarSection Title="Style Rules" Resizable="true">
+                <StyleRulesPanel />
+            </SidebarSection>
+            <SidebarSection Title="Animation & Recording">
+                <AnimationAndRecordingPanel />
+            </SidebarSection>
+            <SidebarSection Title="Settings">
+                <SettingsPanel />
+            </SidebarSection>
+        }
+    </div>
+    <main>
+        @Body
+    </main>
+</div>
+
+@inject PathEditorState Editor
+@inject PensService PensService
+@inject SettingsService SettingsSvc
+@inject UndoRedoService UndoRedo
+
+@code {
+    private bool SidebarExpanded { get; set; } = true;
+    void ToggleSidebar() => SidebarExpanded = !SidebarExpanded;
+
+    void OnKey(KeyboardEventArgs e)
+    {
+        var drawKey = SettingsSvc.Settings.SelectDrawToggleKey ?? "d";
+        var selectKey = SettingsSvc.Settings.SelectModeKey ?? "s";
+        
+        if (string.Equals(e.Key, selectKey, StringComparison.OrdinalIgnoreCase))
+        {
+            Editor.SetMode(EditorMode.Select);
+        }
+        else if (string.Equals(e.Key, drawKey, StringComparison.OrdinalIgnoreCase))
+        {
+            if (Editor.Mode != EditorMode.Drawing)
+            {
+                Editor.SetMode(EditorMode.Drawing);
+            }
+            else
+            {
+                PensService.CycleActivePen();
+            }
+        }
+        else if (e.CtrlKey && e.Key == "z")
+        {
+            var state = UndoRedo.Undo(Editor.Serialize());
+            if (state != null)
+            {
+                // Use CanvasView's restore logic
+                var items = System.Text.Json.JsonSerializer.Deserialize<List<AnimatedDiagrams.Models.PathItem>>(state);
+                if (items != null)
+                {
+                    Editor.Items.Clear();
+                    foreach (var item in items)
+                    {
+                        Editor.Add(item);
+                    }
+                    Editor.MarkSaved();
+                }
+            }
+        }
+        else if (e.CtrlKey && (e.Key == "y" || (e.ShiftKey && e.Key == "Z")))
+        {
+            var state = UndoRedo.Redo(Editor.Serialize());
+            if (state != null)
+            {
+                // Use CanvasView's restore logic
+                var items = System.Text.Json.JsonSerializer.Deserialize<List<AnimatedDiagrams.Models.PathItem>>(state);
+                if (items != null)
+                {
+                    Editor.Items.Clear();
+                    foreach (var item in items)
+                    {
+                        Editor.Add(item);
+                    }
+                    Editor.MarkSaved();
+                }
+            }
+        }
+        // Zoom in: '=' or '+' (no Ctrl required)
+        else if (e.Key == "=" || e.Key == "+")
+        {
+            var oldZoom = Editor.Zoom;
+            var newZoom = Math.Clamp(oldZoom * 1.1, 0.1, 10);
+            Editor.SetViewport(newZoom, Editor.OffsetX, Editor.OffsetY);
+        }
+        // Zoom out: '-' or '_' (no Ctrl required)
+        else if (e.Key == "-" || e.Key == "_")
+        {
+            var oldZoom = Editor.Zoom;
+            var newZoom = Math.Clamp(oldZoom * 0.9, 0.1, 10);
+            Editor.SetViewport(newZoom, Editor.OffsetX, Editor.OffsetY);
+        }
+        else if (e.Key == "Delete")
+        {
+            Editor.DeleteSelected();
+        }
+    }
+}

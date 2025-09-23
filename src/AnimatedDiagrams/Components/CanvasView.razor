@@ -1,0 +1,821 @@
+@using AnimatedDiagrams.Models
+@using AnimatedDiagrams.Services
+@inject PathEditorState Editor
+@inject SettingsService SettingsSvc
+@inject PensService PensService
+
+<div class="canvas-wrapper" tabindex="0" @ref="_canvasWrapper" autofocus @onwheel="OnWheel"
+    @onpointerdown="PointerDown" @onpointerdown:preventDefault
+    @onpointermove="PointerMove" @onpointermove:preventDefault
+    @onpointerup="PointerUp" @onpointerup:preventDefault
+    style="background:@CanvasBgColor">
+    <div class="canvas-toolbar">
+    <button class="app-btn" @onclick="OnToggleModeClick" @onpointerdown:stopPropagation @onpointerup:stopPropagation @onmousedown:stopPropagation>Mode: @(Editor.Mode == EditorMode.Drawing ? "Draw" : Editor.Mode == EditorMode.Select ? "Select" : "Animation")</button>
+    <button class="app-btn" @onclick="Undo" @onpointerdown:stopPropagation @onpointerup:stopPropagation @onmousedown:stopPropagation disabled="!UndoRedo.CanUndo">Undo</button>
+    <button class="app-btn" @onclick="Redo" @onpointerdown:stopPropagation @onpointerup:stopPropagation @onmousedown:stopPropagation disabled="!UndoRedo.CanRedo">Redo</button>
+    <button class="app-btn" @onclick="DeleteSelectedPaths" @onpointerdown:stopPropagation @onpointerup:stopPropagation @onmousedown:stopPropagation disabled="@(Editor.SelectedItems.Count == 0)" title="Delete selected paths">Delete</button>
+    
+        <span>Zoom: @Editor.Zoom.ToString("0.00")</span>
+    @if (Editor.Mode == EditorMode.Drawing && PensService.ActivePen != null)
+        {
+            <span class="active-pen-indicator" style="margin-left:16px;display:inline-flex;align-items:center;gap:6px;">
+                <span title="Active Pen" style="font-weight:bold;color:#0097a7;background:#e0f7fa;padding:2px 8px;border-radius:4px;">
+                    @PensService.ActivePen.Name
+                </span>
+                <svg width="48" height="16" style="vertical-align:middle;">
+                    <line x1="4" y1="8" x2="44" y2="8" stroke="@PensService.ActivePen.Stroke" stroke-width="@PensService.ActivePen.StrokeWidth"
+                        opacity="@PensService.ActivePen.Opacity"
+                        stroke-linecap="@PensService.ActivePen.StrokeLineCap"
+                        stroke-dasharray="@(PensService.ActivePen.LineType == "dashed" ? "8 4" : PensService.ActivePen.LineType == "dotted" ? "2 4" : null)" />
+                </svg>
+            </span>
+        }
+    </div>
+    <svg @ref="_svg" class="diagram-canvas" width="100%" height="100%" viewBox="0 0 2000 1200"
+    style="cursor:@(Editor.Mode == EditorMode.Drawing ? "crosshair" : "default")">
+        <g transform="matrix(@Editor.Zoom 0 0 @Editor.Zoom @Editor.OffsetX @Editor.OffsetY)">
+            @foreach (var item in Editor.Items)
+            {
+                switch (item)
+                {
+                    case PauseHintItem pause:
+                        @((MarkupString)$"<!--Pause:{pause.Milliseconds}-->")
+                        break;
+                    case SpeedHintItem speed:
+                        @((MarkupString)$"<!--Speed:{speed.Multiplier}-->")
+                        break;
+                    case SvgPathItem p:
+                        if (p.Selected)
+                        {
+                            <path d="@p.D" stroke="#00f" stroke-width="@(p.StrokeWidth + 4)" fill="none" opacity="0.5" stroke-linejoin="round" class="glow" />
+                        }
+                        <path id="@p.Id" d="@p.D" 
+                            stroke="@p.Stroke" 
+                            stroke-width="@p.StrokeWidth" 
+                            fill="none" 
+                            opacity="@p.Opacity"
+                            stroke-linejoin="round"
+                            stroke-linecap="@p.StrokeLineCap"
+                            stroke-dasharray="@(p.LineType == "dashed" ? "10 6" : p.LineType == "dotted" ? "3 7" : null)"
+                            data-element-type="path"
+                            data-path-length="@GetPathLength(p.D)" />
+                        break;
+                    case SvgCircleItem c:
+                        if (c.Selected)
+                        {
+                            <circle cx="@c.Cx" cy="@c.Cy" r="@c.R" fill="#00f" stroke="#222" stroke-width="4" opacity="0.5" class="glow" />
+                        }
+                        <circle id="@c.Id" cx="@c.Cx" cy="@c.Cy" r="@c.R" fill="@c.Fill" opacity="@c.Opacity" data-element-type="circle" />
+                        break;
+                }
+            }
+            @if (Editor.EditingSelectedPaths)
+            {
+                @foreach (var node in SelectedPathNodesWithType)
+                {
+                    // Draw nodes for selected items...
+                    if (node.isControl)
+                    {
+                        <circle cx="@node.node.X" cy="@node.node.Y" r="6" fill="#2196f3" stroke="#222" stroke-width="2" opacity="0.85" />
+                    }
+                    else
+                    {
+                        <circle cx="@node.node.X" cy="@node.node.Y" r="6" fill="#ffe600" stroke="#222" stroke-width="2" opacity="0.85" />
+                    }
+                }
+                @foreach (var path in Editor.SelectedItems.OfType<SvgPathItem>())
+                {
+                    // Draw connecting lines and handles for control nodes of selected paths
+                    var nodes = GetPathNodesWithType(path);
+                    for (int i = 0; i < nodes.Count; i++)
+                    {
+                        var (node, isControl) = nodes[i];
+                        if (isControl)
+                        {
+                            // Draw handle for control point (smaller circle)
+                            <circle cx="@node.X" cy="@node.Y" r="4" fill="#2196f3" stroke="#222" stroke-width="1.5" opacity="0.95" />
+                            // Draw connecting line to previous endpoint if possible
+                            if (i > 0 && !nodes[i-1].isControl)
+                            {
+                                var prev = nodes[i-1].node;
+                                <line x1="@prev.X" y1="@prev.Y" x2="@node.X" y2="@node.Y" stroke="#2196f3" stroke-width="1.5" opacity="0.7" stroke-dasharray="2 2" />
+                            }
+                        }
+                    }
+                }
+            }
+    
+            @if (_activePath != null)
+            {
+                // Draw new line...
+                <path d="@_activePath.D" 
+                    stroke="@_activePath.Stroke" 
+                    stroke-width="@_activePath.StrokeWidth" 
+                    fill="none"
+                    opacity="@_activePath.Opacity" 
+                    stroke-linecap="@_activePath.StrokeLineCap" />
+            }
+            @if (_dragSelecting && _dragStart.HasValue && _dragEnd.HasValue)
+            { 
+                // Draw selection rectangle...
+                var (x0, y0) = _dragStart.Value;
+                var (x1, y1) = _dragEnd.Value;
+                var minX = Math.Min(x0, x1);
+                var maxX = Math.Max(x0, x1);
+                var minY = Math.Min(y0, y1);
+                var maxY = Math.Max(y0, y1);
+                <rect x="@minX" y="@minY" width="@(maxX-minX)" height="@(maxY-minY)" fill="#00f" fill-opacity="0.1" stroke="#00f" stroke-dasharray="4 4" />
+            }
+        </g>
+    </svg>
+    @if (SettingsSvc.Settings.ShowDebugOverlay)
+    {
+        <div class="debug-overlay">
+            <strong>Debug</strong><br />
+            Rect: @_lastSvgRect.x,@_lastSvgRect.y / @_lastSvgRect.w x @_lastSvgRect.h<br />
+            Zoom: @Editor.Zoom.ToString("0.00") Off: @Editor.OffsetX.ToString("0.##"),@Editor.OffsetY.ToString("0.##")<br />
+            ActivePts: @_points.Count @(_activePath == null ? "(idle)" : "(drawing)")<br />
+        </div>
+    }
+</div>
+
+
+@code {
+    // Store original positions for circles during drag
+    private Dictionary<SvgCircleItem, (double cx, double cy)>? _dragMoveOriginalCircles;
+    private ElementReference _svg;
+    private ElementReference _canvasWrapper;
+    [Inject] UndoRedoService UndoRedo { get; set; } = default!;
+    [Inject] IJSRuntime JS { get; set; } = default!;
+    private SvgPathItem? _activePath;
+    private List<(double x, double y)> _points = new();
+    private bool _panning;
+    private (double x, double y) _panStart;
+    private (double x, double y) _offsetStart;
+    private (double x, double y, double w, double h) _lastSvgRect = (0, 0, 0, 0);
+    private bool _dragSelecting;
+    private (double x, double y)? _dragStart;
+    private (double x, double y)? _dragEnd;
+    private bool _dragMovingPaths = false;
+    private (double x, double y)? _dragMoveStart;
+    private Dictionary<SvgPathItem, List<(double x, double y)>>? _dragMoveOriginalPoints;
+    private bool _pendingCircle = false;
+    
+    // Hit test: only select if click is close to a path segment, not inside area
+    bool IsPointNearPath(double x, double y, SvgPathItem path)
+    {
+        var tokens = path.D.Replace("M", " ").Replace("Q", " ").Replace("L", " ").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        const double threshold = 5;
+        if (tokens.Length < 4) return false;
+        for (int i = 0; i + 3 < tokens.Length; i += 2)
+        {
+            if (double.TryParse(tokens[i], out var x1) && double.TryParse(tokens[i + 1], out var y1) &&
+                double.TryParse(tokens[i + 2], out var x2) && double.TryParse(tokens[i + 3], out var y2))
+            {
+                var dist = DistanceToSegment(x, y, x1, y1, x2, y2);
+                if (dist < threshold) return true;
+            }
+        }
+        return false;
+    }
+
+    // Estimate SVG path length for animation (fallback for JS getTotalLength)
+    double GetPathLength(string d)
+    {
+        // Simple estimation: sum of segment lengths for M/L commands
+        var tokens = d.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        double length = 0;
+        double? lastX = null, lastY = null;
+        int i = 0;
+        while (i < tokens.Length)
+        {
+            var cmd = tokens[i];
+            if (cmd == "M" || cmd == "L")
+            {
+                if (i + 2 < tokens.Length && double.TryParse(tokens[i + 1], out var x) && double.TryParse(tokens[i + 2], out var y))
+                {
+                    if (lastX.HasValue && lastY.HasValue)
+                    {
+                        var dx = x - lastX.Value;
+                        var dy = y - lastY.Value;
+                        length += Math.Sqrt(dx * dx + dy * dy);
+                    }
+                    lastX = x; lastY = y;
+                    i += 3;
+                }
+                else i++;
+            }
+            else if (cmd == "Q")
+            {
+                // Quadratic: estimate as straight line for fallback
+                if (i + 4 < tokens.Length && double.TryParse(tokens[i + 3], out var x) && double.TryParse(tokens[i + 4], out var y))
+                {
+                    if (lastX.HasValue && lastY.HasValue)
+                    {
+                        var dx = x - lastX.Value;
+                        var dy = y - lastY.Value;
+                        length += Math.Sqrt(dx * dx + dy * dy);
+                    }
+                    lastX = x; lastY = y;
+                    i += 5;
+                }
+                else i++;
+            }
+            else if (cmd == "C")
+            {
+                // Cubic: estimate as straight line for fallback
+                if (i + 6 < tokens.Length && double.TryParse(tokens[i + 5], out var x) && double.TryParse(tokens[i + 6], out var y))
+                {
+                    if (lastX.HasValue && lastY.HasValue)
+                    {
+                        var dx = x - lastX.Value;
+                        var dy = y - lastY.Value;
+                        length += Math.Sqrt(dx * dx + dy * dy);
+                    }
+                    lastX = x; lastY = y;
+                    i += 7;
+                }
+                else i++;
+            }
+            else i++;
+        }
+        return length;
+    }
+
+    // Helper: distance from point to segment
+    double DistanceToSegment(double px, double py, double x1, double y1, double x2, double y2)
+    {
+        var dx = x2 - x1; var dy = y2 - y1;
+        if (dx == 0 && dy == 0) return Math.Sqrt((px - x1) * (px - x1) + (py - y1) * (py - y1));
+        var t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy);
+        t = Math.Max(0, Math.Min(1, t));
+        var projX = x1 + t * dx;
+        var projY = y1 + t * dy;
+        return Math.Sqrt((px - projX) * (px - projX) + (py - projY) * (py - projY));
+    }
+
+    private IEnumerable<(Node node, bool isControl)> SelectedPathNodesWithType
+    {
+        get
+        {
+            var result = new List<(Node, bool)>();
+            foreach (var p in Editor.SelectedItems.OfType<SvgPathItem>())
+            {
+                result.AddRange(GetPathNodesWithType(p));
+            }
+            return result;
+        }
+    }
+
+    private List<(Node node, bool isControl)> GetPathNodesWithType(SvgPathItem path)
+    {
+        var result = new List<(Node, bool)>();
+        var tokens = path.D.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        int i = 0;
+        while (i < tokens.Length)
+        {
+            var cmd = tokens[i];
+            if (cmd == "M" || cmd == "L")
+            {
+                if (i + 2 < tokens.Length && double.TryParse(tokens[i + 1], out var x) && double.TryParse(tokens[i + 2], out var y))
+                {
+                    result.Add((new Node { X = x, Y = y }, false));
+                    i += 3;
+                }
+                else i++;
+            }
+            else if (cmd == "Q")
+            {
+                // Q x1 y1 x y (x1,y1 is control, x,y is endpoint)
+                if (i + 4 < tokens.Length && double.TryParse(tokens[i + 1], out var cx) && double.TryParse(tokens[i + 2], out var cy)
+                    && double.TryParse(tokens[i + 3], out var x) && double.TryParse(tokens[i + 4], out var y))
+                {
+                    result.Add((new Node { X = cx, Y = cy }, true)); // control point
+                    result.Add((new Node { X = x, Y = y }, false));   // endpoint
+                    i += 5;
+                }
+                else i++;
+            }
+            else if (cmd == "C")
+            {
+                // C x1 y1 x2 y2 x y (cubic: two controls, one endpoint)
+                if (i + 6 < tokens.Length && double.TryParse(tokens[i + 1], out var cx1) && double.TryParse(tokens[i + 2], out var cy1)
+                    && double.TryParse(tokens[i + 3], out var cx2) && double.TryParse(tokens[i + 4], out var cy2)
+                    && double.TryParse(tokens[i + 5], out var x) && double.TryParse(tokens[i + 6], out var y))
+                {
+                    result.Add((new Node { X = cx1, Y = cy1 }, true));
+                    result.Add((new Node { X = cx2, Y = cy2 }, true));
+                    result.Add((new Node { X = x, Y = y }, false));
+                    i += 7;
+                }
+                else i++;
+            }
+            else i++;
+        }
+        return result;
+    }    
+
+    void OnToggleModeClick(MouseEventArgs e)
+    {
+        // Cycle between Drawing and Select (not Animation)
+        var nextMode = Editor.Mode == EditorMode.Drawing ? EditorMode.Select : EditorMode.Drawing;
+        Editor.SetMode(nextMode);
+        StateHasChanged();
+    }
+
+    void Undo()
+    {
+        var state = UndoRedo.Undo(Editor.Serialize());
+        if (state != null) Restore(state);
+    }
+
+    void Redo()
+    {
+        var state = UndoRedo.Redo(Editor.Serialize());
+        if (state != null) Restore(state);
+    }
+
+    void Restore(string json)
+    {
+        try
+        {
+            var items = System.Text.Json.JsonSerializer.Deserialize<List<PathItem>>(json);
+            if (items != null)
+            {
+                Editor.Items.Clear();
+                foreach (var item in items)
+                {
+                    Editor.Add(item);
+                }
+                Editor.MarkSaved();
+            }
+        }
+        catch { }
+    }
+
+    string StateSnapshot() => Editor.Serialize();
+
+    string CanvasBgColor => (SettingsSvc.EffectiveTheme == ThemeMode.Dark) ? SettingsSvc.Settings.DarkCanvasColor : SettingsSvc.Settings.LightCanvasColor;
+
+    public class DomRect
+    {
+        public double x { get; set; }
+        public double y { get; set; }
+        public double width { get; set; }
+        public double height { get; set; }
+    }
+    
+    void OnWheel(WheelEventArgs e)
+    {
+        var oldZoom = Editor.Zoom;
+        var newZoom = oldZoom * (e.DeltaY < 0 ? 1.1 : 0.9);
+        newZoom = Math.Clamp(newZoom, 0.1, 10);
+        var rect = _lastSvgRect;
+        if (rect.w <= 0 || rect.h <= 0) { Editor.SetViewport(newZoom, Editor.OffsetX, Editor.OffsetY); return; }
+        var localX = e.ClientX - rect.x;
+        var localY = e.ClientY - rect.y;
+        var vbX = localX / rect.w * 2000.0;
+        var vbY = localY / rect.h * 1200.0;
+        var worldXBefore = (vbX - Editor.OffsetX) / oldZoom;
+        var worldYBefore = (vbY - Editor.OffsetY) / oldZoom;
+        var newOffsetX = vbX - worldXBefore * newZoom;
+        var newOffsetY = vbY - worldYBefore * newZoom;
+        Editor.SetViewport(newZoom, newOffsetX, newOffsetY);
+    }
+
+    async void PointerDown(PointerEventArgs e)
+    {
+        //Console.WriteLine($"PointerDown: Type={e.Type} PointerType={e.PointerType} button={e.Button} pressure={e.Pressure} AltKey={e.AltKey}");
+
+        // Ignore pen hover (pressure==0), only draw/select on contact
+        if (e.Pressure == 0)
+            return;
+
+        if(Editor.ModeWhichShoudIgnorePointerEvents)
+            return;
+
+        // Eraser detection: Alt+LeftClick acts as eraser (for pen or mouse)
+        if (e.AltKey && e.Button == 0)
+        {
+            var svgHitPoint = ToSvgFromEvent(e);
+            var hitPath = Editor.Items.OfType<SvgPathItem>().FirstOrDefault(p => IsPointNearPath(svgHitPoint.x, svgHitPoint.y, p));
+            var hitCircle = Editor.Items.OfType<SvgCircleItem>().FirstOrDefault(c => IsPointInCircle(svgHitPoint.x, svgHitPoint.y, c));
+            if (hitPath != null) Editor.Delete(hitPath);
+            if (hitCircle != null) Editor.Delete(hitCircle);
+            StateHasChanged();
+            return;
+        }
+        // Barrel button mapped to middle-click (panning) for pen
+        if (e.PointerType == "pen" && e.Button == 1)
+        {
+            _panning = true; 
+            _panStart = (e.ClientX, e.ClientY); 
+            _offsetStart = (Editor.OffsetX, Editor.OffsetY); 
+            return;
+        }
+        // Mouse middle-click starts panning, but not for pen
+        if (e.PointerType == "mouse" && e.Button == 1)
+        {
+            _panning = true; 
+            _panStart = (e.ClientX, e.ClientY); 
+            _offsetStart = (Editor.OffsetX, Editor.OffsetY); 
+            return;
+        }
+        // Left-click drag for selection rectangle in select mode
+    if (e.Button == 0 && Editor.Mode != EditorMode.Drawing)
+        {
+            var svgHitPoint = ToSvgFromEvent(e);
+            // Single-click select logic
+            // Hit test for paths
+            var hitPath = Editor.Items.OfType<SvgPathItem>().FirstOrDefault(p => IsPointNearPath(svgHitPoint.x, svgHitPoint.y, p));
+            // Hit test for circles
+            var hitCircle = Editor.Items.OfType<SvgCircleItem>().FirstOrDefault(c => IsPointInCircle(svgHitPoint.x, svgHitPoint.y, c));
+            PathItem? hit = null;
+            if (hitPath != null)
+                hit = hitPath;
+            else if (hitCircle != null)
+                hit = hitCircle;
+            if (hit != null)
+            {
+                bool skipSelection = false;
+                if (Editor.SelectedItems.Count > 1 && Editor.SelectedItems.Contains(hit) && !e.CtrlKey)
+                {
+                    skipSelection = true;
+                }
+                if (!skipSelection)
+                {
+                    if (e.CtrlKey)
+                    {
+                        var selected = Editor.SelectedItems.ToList();
+                        if (hit.Selected)
+                            selected.Remove(hit);
+                        else
+                            selected.Add(hit);
+                        Editor.SelectMultiple(selected);
+                        Editor.Highlight(hit);
+                    }
+                    else
+                    {
+                        Editor.Select(hit);
+                        Editor.Highlight(hit);
+                    }
+                    StateHasChanged();
+                }
+
+                // Multi-shape drag: if hit is selected, start drag-move for all selected
+                if (Editor.SelectedItems.Contains(hit))
+                {
+                    _dragMovingPaths = true;
+                    _dragMoveStart = svgHitPoint;
+                    _dragMoveOriginalPoints = new Dictionary<SvgPathItem, List<(double x, double y)>>();
+                    foreach (var path in Editor.SelectedItems.OfType<SvgPathItem>())
+                    {
+                        var pts = GetPathPoints(path);
+                        _dragMoveOriginalPoints[path] = pts;
+                    }
+                    // Store original positions for circles
+                    _dragMoveOriginalCircles = new Dictionary<SvgCircleItem, (double cx, double cy)>();
+                    foreach (var circle in Editor.SelectedItems.OfType<SvgCircleItem>())
+                    {
+                        _dragMoveOriginalCircles[circle] = (circle.Cx, circle.Cy);
+                    }
+                }
+                return;
+            }
+    
+            // Otherwise, start drag-select
+            _dragSelecting = true;
+            _dragStart = svgHitPoint;
+            _dragEnd = svgHitPoint;
+            Editor.SelectMultiple(Array.Empty<PathItem>());
+            Editor.ClearHighlights();
+            StateHasChanged();
+            return;
+        }
+
+        // In draw mode, allow mouse left-click or pen tip contact
+    if (Editor.Mode != EditorMode.Drawing || 
+            (e.PointerType == "mouse" && e.Button != 0) ||
+            (e.PointerType == "pen" && e.Pressure == 0))
+            return;
+
+        // Clear selection when starting to draw
+        Editor.Select(null);
+        Editor.ClearHighlights();
+        StateHasChanged();
+
+        await RefreshRectAsync();
+        var (sx, sy) = ToSvgFromEvent(e);
+        var pen = PensService.ActivePen;
+
+        // Start path drawing        
+        _points.Clear();
+        _points.Add((sx, sy));
+        _activePath = new SvgPathItem {
+            D = $"M {sx} {sy}",
+            StrokeWidth = pen?.StrokeWidth ?? 2,
+            Stroke = pen?.Stroke ?? "#000",
+            Opacity = pen?.Opacity ?? 1.0,
+            LineType = pen?.LineType ?? "solid",
+            StrokeLineCap = pen?.StrokeLineCap ?? "square"
+        };        
+
+        // This could be a circle if we subsequently get a pointerUp with no move...
+        _pendingCircle = (!e.ShiftKey && !e.CtrlKey && !e.AltKey);    
+    }
+
+    void PointerMove(PointerEventArgs e)        
+    {
+        //Console.WriteLine($"PointerMove: type={e.PointerType} button={e.Button} pressure={e.Pressure}");
+        
+        // Ignore pen hover (pressure==0), only draw/move on contact
+        if (e.Pressure == 0)
+            return;
+
+        if(Editor.ModeWhichShoudIgnorePointerEvents)
+            return;
+
+        // Eraser detection: Alt+LeftClick acts as eraser (for pen or mouse) while moving
+        if (e.AltKey && e.Button == 0)
+        {
+            var svgHitPoint = ToSvgFromEvent(e);
+            var hitPath = Editor.Items.OfType<SvgPathItem>().FirstOrDefault(p => IsPointNearPath(svgHitPoint.x, svgHitPoint.y, p));
+            var hitCircle = Editor.Items.OfType<SvgCircleItem>().FirstOrDefault(c => IsPointInCircle(svgHitPoint.x, svgHitPoint.y, c));
+            if (hitPath != null) Editor.Delete(hitPath);
+            if (hitCircle != null) Editor.Delete(hitCircle);
+            StateHasChanged();
+            return;
+        }
+
+        if (_panning)
+        {
+            var dx = e.ClientX - _panStart.x;
+            var dy = e.ClientY - _panStart.y;
+            Editor.SetViewport(Editor.Zoom, _offsetStart.x + dx, _offsetStart.y + dy);
+            return;
+        }
+        if (_dragSelecting && _dragStart.HasValue)
+        {
+            var svgHitPoint = ToSvgFromEvent(e);
+            _dragEnd = svgHitPoint;
+            var (x0, y0) = _dragStart.Value;
+            var (x1, y1) = svgHitPoint;
+            var minX = Math.Min(x0, x1);
+            var maxX = Math.Max(x0, x1);
+            var minY = Math.Min(y0, y1);
+            var maxY = Math.Max(y0, y1);
+            var selectedPaths = Editor.Items.OfType<SvgPathItem>().Where(p => PathIntersectsRect(p, minX, minY, maxX, maxY)).ToList();
+            var selectedCircles = Editor.Items.OfType<SvgCircleItem>().Where(c => CircleIntersectsRect(c, minX, minY, maxX, maxY)).ToList();
+            var selected = selectedPaths.Cast<PathItem>().Concat(selectedCircles).ToList();
+            if (e.CtrlKey)
+            {
+                // Add to current selection
+                var combined = Editor.SelectedItems.Union(selected).ToList();
+                Editor.SelectMultiple(combined);
+            }
+            else
+            {
+                // Replace selection
+                Editor.SelectMultiple(selected);
+            }
+            Editor.ClearHighlights();
+            foreach (var item in Editor.SelectedItems) item.Highlight = true;
+            StateHasChanged();
+            return;
+    
+        }
+
+            // Multi-shape drag-move logic
+            if (_dragMovingPaths && _dragMoveStart.HasValue && _dragMoveOriginalPoints != null)
+            {
+                var svgHitPoint = ToSvgFromEvent(e);
+                var (startX, startY) = _dragMoveStart.Value;
+                var dx = svgHitPoint.x - startX;
+                var dy = svgHitPoint.y - startY;
+                foreach (var kvp in _dragMoveOriginalPoints)
+                {
+                    var path = kvp.Key;
+                    var origPts = kvp.Value;
+                    var movedPts = origPts.Select(pt => (pt.x + dx, pt.y + dy)).ToList();
+                    path.D = SmoothingStrategies.Linear(movedPts);
+                }
+                // Move circles
+                if (_dragMoveOriginalCircles != null)
+                {
+                    foreach (var kvp in _dragMoveOriginalCircles)
+                    {
+                        var circle = kvp.Key;
+                        var (origCx, origCy) = kvp.Value;
+                        circle.Cx = origCx + dx;
+                        circle.Cy = origCy + dy;
+                    }
+                }
+                StateHasChanged();
+                return;
+            }
+        if (_activePath == null) return;
+        var (sx, sy) = ToSvgFromEvent(e);
+        if (_points.Last() == (sx, sy)) return;
+        _points.Add((sx, sy));
+        // Always use linear while drawing for smooth experience
+        _activePath.D = SmoothingStrategies.Linear(_points);
+    }
+
+    void PointerUp(PointerEventArgs e)
+    { 
+        if(Editor.ModeWhichShoudIgnorePointerEvents)
+            return;
+
+        if (_panning) { _panning = false; return; }
+        if (_dragSelecting)
+        {
+            _dragSelecting = false;
+            _dragStart = null;
+            _dragEnd = null;
+            StateHasChanged();
+            return;
+        }
+
+        // End multi-shape drag-move
+        if (_dragMovingPaths)
+        {
+            _dragMovingPaths = false;
+            _dragMoveStart = null;
+            _dragMoveOriginalPoints = null;
+            _dragMoveOriginalCircles = null;
+            // Push state for undo/redo
+            UndoRedo.PushState(StateSnapshot());
+            StateHasChanged();
+            return;
+        }
+
+        // If no mouse movement, create a circle
+        if (_pendingCircle && _activePath != null && _points.Count == 1)
+        {
+            var pen = PensService.ActivePen;
+            var (cx, cy) = _points[0];
+            var circle = new SvgCircleItem {
+                Cx = cx,
+                Cy = cy,
+                R = (pen?.StrokeWidth ?? 2) / 2.0,
+                Fill = pen?.Stroke ?? "#000",
+                Opacity = pen?.Opacity ?? 1.0
+            };
+            Editor.Add(circle);
+            UndoRedo.PushState(StateSnapshot());
+            StateHasChanged();
+            _activePath = null;
+            _pendingCircle = false;
+            return;
+        }
+
+        if (_activePath != null)
+        {            
+            // finalize with selected smoothing
+            int minStep = 2, maxStep = 10;
+            int step = minStep;
+            if (SettingsSvc.Settings.ExtremeAutoSmoothingOfStraightishLines)
+            {
+                step = maxStep;
+            }
+            _activePath.D = SmoothingStrategies.BuildPath(_points, SettingsSvc.Settings.SmoothingStrategy, step, step);            
+            Editor.Add(_activePath);
+            UndoRedo.PushState(StateSnapshot());
+            _activePath = null;
+        }
+        _pendingCircle = false;
+    }
+
+        // Helper: get all points from a path (for drag-move)
+        List<(double x, double y)> GetPathPoints(SvgPathItem path)
+        {
+            var pts = new List<(double x, double y)>();
+            var tokens = path.D.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            int i = 0;
+            while (i < tokens.Length)
+            {
+                var cmd = tokens[i];
+                if (cmd == "M" || cmd == "L")
+                {
+                    if (i + 2 < tokens.Length && double.TryParse(tokens[i + 1], out var x) && double.TryParse(tokens[i + 2], out var y))
+                    {
+                        pts.Add((x, y));
+                        i += 3;
+                    }
+                    else i++;
+                }
+                else if (cmd == "Q")
+                {
+                    if (i + 4 < tokens.Length && double.TryParse(tokens[i + 1], out var cx) && double.TryParse(tokens[i + 2], out var cy)
+                        && double.TryParse(tokens[i + 3], out var x) && double.TryParse(tokens[i + 4], out var y))
+                    {
+                        pts.Add((cx, cy));
+                        pts.Add((x, y));
+                        i += 5;
+                    }
+                    else i++;
+                }
+                else if (cmd == "C")
+                {
+                    if (i + 6 < tokens.Length && double.TryParse(tokens[i + 1], out var cx1) && double.TryParse(tokens[i + 2], out var cy1)
+                        && double.TryParse(tokens[i + 3], out var cx2) && double.TryParse(tokens[i + 4], out var cy2)
+                        && double.TryParse(tokens[i + 5], out var x) && double.TryParse(tokens[i + 6], out var y))
+                    {
+                        pts.Add((cx1, cy1));
+                        pts.Add((cx2, cy2));
+                        pts.Add((x, y));
+                        i += 7;
+                    }
+                    else i++;
+                }
+                else i++;
+            }
+            return pts;
+        }
+    
+    bool PathIntersectsRect(SvgPathItem path, double minX, double minY, double maxX, double maxY)
+    {
+        var tokens = path.D.Replace("M", " ").Replace("Q", " ").Replace("L", " ").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        for (int i = 0; i + 1 < tokens.Length; i += 2)
+        {
+            if (double.TryParse(tokens[i], out var px) && double.TryParse(tokens[i + 1], out var py))
+            {
+                if (px >= minX && px <= maxX && py >= minY && py <= maxY)
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    bool CircleIntersectsRect(SvgCircleItem c, double minX, double minY, double maxX, double maxY)
+    {
+        // Check if circle center is inside rect, or if rect overlaps circle
+        if (c.Cx >= minX && c.Cx <= maxX && c.Cy >= minY && c.Cy <= maxY)
+            return true;
+        // Check if any rect corner is inside the circle
+        var corners = new[] { (minX, minY), (maxX, minY), (minX, maxY), (maxX, maxY) };
+        foreach (var (x, y) in corners)
+        {
+            var dx = x - c.Cx;
+            var dy = y - c.Cy;
+            if ((dx * dx + dy * dy) <= (c.R * c.R)) return true;
+        }
+        // Check if circle overlaps any edge of the rect
+        if (c.Cx + c.R >= minX && c.Cx - c.R <= maxX && c.Cy + c.R >= minY && c.Cy - c.R <= maxY)
+            return true;
+        return false;
+    }
+
+    // Hit test for circles
+    bool IsPointInCircle(double x, double y, SvgCircleItem c)
+    {
+        var dx = x - c.Cx;
+        var dy = y - c.Cy;
+        return (dx * dx + dy * dy) <= (c.R * c.R);
+    }
+
+    (double x, double y) ToSvgFromEvent(PointerEventArgs e)
+    {
+        var rect = _lastSvgRect;
+        if (rect.w <= 0 || rect.h <= 0) return (0, 0);
+        double localX = e.ClientX - rect.x;
+        double localY = e.ClientY - rect.y;
+        var vbX = localX / rect.w * 2000.0;
+        var vbY = localY / rect.h * 1200.0;
+        var x = (vbX - Editor.OffsetX) / Editor.Zoom;
+        var y = (vbY - Editor.OffsetY) / Editor.Zoom;
+        return (x, y);
+    }
+
+    async Task RefreshRectAsync()
+    {
+        try
+        {
+            var rect = await JS.InvokeAsync<DomRect>("canvasInterop.getRect", _svg);
+            _lastSvgRect = (rect.x, rect.y, rect.width, rect.height);
+        }
+        catch { }
+    }
+
+    protected override void OnInitialized()
+    {
+        // Subscribe to Editor.Changed event for redraws after import or state changes
+        Editor.Changed += StateHasChanged;
+        SettingsSvc.Changed += StateHasChanged;
+        PensService.Changed += StateHasChanged;
+        // Ensure keybinding works immediately by focusing canvas wrapper
+        _ = Task.Run(async () => {
+            await Task.Delay(100);
+            await InvokeAsync(async () => await _canvasWrapper.FocusAsync());
+        });
+    }
+
+    public void Dispose()
+    {
+        Editor.Changed -= StateHasChanged;
+        SettingsSvc.Changed -= StateHasChanged;
+        PensService.Changed -= StateHasChanged;
+    }
+
+    public void DeleteSelectedPaths() => Editor.DeleteSelected();
+}

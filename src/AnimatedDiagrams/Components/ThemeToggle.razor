@@ -1,0 +1,16 @@
+@using AnimatedDiagrams.Models
+@inject SettingsService Settings
+<button class="app-btn" @onclick="Toggle">Theme: @Settings.Settings.Theme</button>
+@code {
+    void Toggle()
+    {
+        Settings.Settings.Theme = Settings.Settings.Theme switch
+        {
+            ThemeMode.System => ThemeMode.Light,
+            ThemeMode.Light => ThemeMode.Dark,
+            ThemeMode.Dark => ThemeMode.System,
+            _ => ThemeMode.System
+        };
+        Settings.Save(); // triggers Changed event for realtime theme update
+    }
+}

@@ -1,0 +1,98 @@
+@using AnimatedDiagrams.Services
+@if (Collapsed)
+{
+    <div class="sidebar-section collapsed" @onclick="Toggle">
+        <div class="section-header" title="Expand">▶ @Title</div>
+    </div>
+}
+else
+{
+    <div class="sidebar-section" style="@(Resizable ? $"height:{Height}px;position:relative;display:flex;flex-direction:column;" : (MaxHeight!=null?$"max-height:{MaxHeight};overflow-y:auto;":""))">
+        <div class="section-header" @onclick="Toggle">▼ @Title</div>
+    <div class="section-body" style="flex:1 1 auto;overflow-y:auto;overflow-x:hidden;">
+            @ChildContent
+        </div>
+        @if (Resizable)
+        {
+            <div class="resize-handle" style="height:8px;cursor:ns-resize;background:#666;position:absolute;bottom:0;left:0;right:0;z-index:10;" @onmousedown="OnResizeMouseDown"></div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public bool StartCollapsed { get; set; }
+    [Parameter] public string? MaxHeight { get; set; }
+    [Parameter] public bool Resizable { get; set; } = false;
+    [Inject] public BrowserLocalStorage LocalStorage { get; set; } = default!;
+    private bool Collapsed;
+    private double Height = 400;
+    private bool _resizing = false;
+    private double _startY;
+    private double _startHeight;
+
+    protected override void OnInitialized()
+    {
+        var key = $"sidebar_{Title}_collapsed";
+        if (StartCollapsed)
+        {
+            Collapsed = true;
+        }
+        else
+        {
+            var stored = LocalStorage.GetItem(key);
+            Collapsed = stored == "true";
+        }
+        if (Resizable)
+        {
+            var hkey = $"sidebar_{Title}_height";
+            var hval = LocalStorage.GetItem(hkey);
+            if (double.TryParse(hval, out var h) && h > 100)
+                Height = h;
+        }
+    }
+    void Toggle()
+    {
+        Collapsed = !Collapsed;
+        var key = $"sidebar_{Title}_collapsed";
+        LocalStorage.SetItem(key, Collapsed ? "true" : "false");
+    }
+
+    void OnResizeMouseDown(MouseEventArgs e)
+    {
+        _resizing = true;
+        _startY = e.ClientY;
+        _startHeight = Height;
+        ActiveResizes[Title] = this;
+        JS.InvokeVoidAsync("window.sidebarSectionStartResize", Title);
+    }
+
+    // Static dictionary to track which section is being resized
+    private static Dictionary<string, SidebarSection> ActiveResizes = new();
+
+    [JSInvokable("SidebarSectionResize")]
+    public static void SidebarSectionResize(string title, double clientY)
+    {
+        if (ActiveResizes.TryGetValue(title, out var section) && section._resizing)
+        {
+            var delta = clientY - section._startY;
+            section.Height = Math.Max(100, section._startHeight + delta);
+            section.StateHasChanged();
+        }
+    }
+
+    [JSInvokable("SidebarSectionEndResize")]
+    public static void SidebarSectionEndResize(string title)
+    {
+        if (ActiveResizes.TryGetValue(title, out var section) && section._resizing)
+        {
+            section._resizing = false;
+            var hkey = $"sidebar_{title}_height";
+            section.LocalStorage.SetItem(hkey, section.Height.ToString());
+            ActiveResizes.Remove(title);
+        }
+    }
+
+    [Inject] public IJSRuntime JS { get; set; } = default!;
+}

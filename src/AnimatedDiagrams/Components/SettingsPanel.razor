@@ -1,0 +1,102 @@
+@using AnimatedDiagrams.Models
+@inject SettingsService SettingsService
+
+<div class="settings-panel">
+    <h3>Settings</h3>
+    <label>Theme
+        <select value="@SettingsService.Settings.Theme" @onchange="ThemeSelectChanged">
+            @foreach (var t in Enum.GetValues<ThemeMode>())
+            {
+                <option value="@t">@t</option>
+            }
+        </select>
+    </label>
+    <div class="info small">System = match OS. Light/Dark override OS preference.</div>
+    <div class="canvas-colors">
+        <label>Light Canvas <input type="color" @bind="SettingsService.Settings.LightCanvasColor" @oninput="_ => OnCanvasColorChanged()" /></label>
+        <label>Dark Canvas <input type="color" @bind="SettingsService.Settings.DarkCanvasColor" @oninput="_ => OnCanvasColorChanged()" /></label>
+    </div>
+
+    <div class="keybinding-config">
+        <label>
+            Draw Mode Keybinding
+            <input type="text" @bind="SettingsService.Settings.SelectDrawToggleKey" placeholder="F2 or [control]+5" @oninput="_ => OnKeybindingChanged()" />
+        </label>
+        <div class="info small">Format: F2, [control]+5, [shift]+F2, etc. Use square brackets for modifiers.</div>
+        <label style="margin-top:8px;">
+            Select Mode Keybinding
+            <input type="text" @bind="SettingsService.Settings.SelectModeKey" placeholder="F3 or [alt]+F3" @oninput="_ => OnKeybindingChanged()" />
+        </label>
+        <div class="info small">Format: F3, [alt]+F3, etc. Use square brackets for modifiers.</div>
+    </div>
+    <div class="smoothing-config">
+        <label>
+            Smoothing Strategy
+            <select value="@SettingsService.Settings.SmoothingStrategy" @onchange="SmoothingStrategyChanged">
+                @foreach (var s in Enum.GetValues<SmoothingType>())
+                {
+                    <option value="@s">@s</option>
+                }
+            </select>
+        </label>
+        <div class="info small">Choose how paths are smoothed when drawing.</div>
+    </div>
+    <div class="extreme-smoothing-toggle">
+        <label>
+            <input type="checkbox" @bind="SettingsService.Settings.ExtremeAutoSmoothingOfStraightishLines" />
+            Extreme Auto Smoothing of Straightish Lines
+        </label>
+        <div class="info small">When enabled, aggressively reduces points for straight lines on mouseup.</div>
+    </div>
+    <h4>Saved Colors</h4>
+    <div class="colors">
+        @foreach (var c in SettingsService.Settings.SavedColors)
+        {
+            <div class="color-box" style="background:@c"></div>
+        }
+    </div>
+    <input placeholder="#RRGGBB" @onchange="AddColor" />
+    <div class="debug-toggle">
+        <label>
+            <input type="checkbox" @bind="SettingsService.Settings.ShowDebugOverlay" /> Show Debug Overlay
+        </label>
+    </div>
+    <button class="app-btn" @onclick="Save">Save Settings</button>
+</div>
+@code {
+    void AddColor(ChangeEventArgs e)
+    {
+        var v = e.Value?.ToString();
+        if (!string.IsNullOrWhiteSpace(v)) SettingsService.Settings.SavedColors.Add(v);
+    }
+    void Save() => SettingsService.Save();
+
+    void OnKeybindingChanged()
+    {
+        SettingsService.Save();
+    }
+    void OnCanvasColorChanged()
+    {
+        SettingsService.Save(); // persists and fires Changed
+    }
+    void ThemeSelectChanged(ChangeEventArgs e)
+    {
+        if (Enum.TryParse<ThemeMode>(e.Value?.ToString(), out var mode))
+        {
+            SettingsService.Settings.Theme = mode;
+            SettingsService.Save();
+        }
+    }
+    void SmoothingStrategyChanged(ChangeEventArgs e)
+    {
+        if (Enum.TryParse<SmoothingType>(e.Value?.ToString(), out var strategy))
+        {
+            SettingsService.Settings.SmoothingStrategy = strategy;
+            SettingsService.Save();
+        }
+    }
+    void ExtremeSmoothingChanged(ChangeEventArgs e)
+    {
+        SettingsService.Save();
+    }
+}

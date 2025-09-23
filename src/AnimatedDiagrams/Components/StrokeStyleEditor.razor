@@ -1,0 +1,116 @@
+@using AnimatedDiagrams.Models
+@* Reusable stroke style editor for PenModel or SvgPathItem implementing PathProperties *@
+<div class="stroke-style-editor @(IsActive ? "active" : "")" 
+    style="display:flex;flex-direction:column;gap:2px;width:100%;border-radius:4px;margin-bottom:2px;padding:2px 10px;border-bottom:1.5px solid #3a4a5a;opacity:0.7;@(IsActive ? "background:var(--active-bg);" : "")" 
+    @onclick="OnSetActive">
+    @if (isEditing)
+    {        
+        <div>
+            @if (Props is PenModel pen)
+            {
+                <div style="margin-bottom:4px;">
+                    <label style="font-size:0.95em;">Name:</label>
+                    <input type="text" @bind="pen.Name" style="width:100px;font-size:0.95em;" title="Name" />
+                </div>
+            }
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <svg width="48" height="16" style="vertical-align:middle;">
+                    <line x1="4" y1="8" x2="44" y2="8" stroke=@(Props.Stroke == "-" ? "#888" : Props.Stroke) stroke-width="@(double.IsNaN(Props.StrokeWidth) ? 2 : Props.StrokeWidth)"
+                        opacity="@(double.IsNaN(Props.Opacity) ? 1 : Props.Opacity)"
+                        stroke-dasharray="@(Props.LineType == "-" ? null : Props.LineType == "dashed" ? "8 4" : Props.LineType == "dotted" ? "2 4" : null)" />
+                </svg>
+                <span style="font-size:0.95em;">Preview</span>
+            </div>
+            <div style="margin-bottom:6px;">
+                <label style="font-size:0.95em;">Color:</label>
+                <input type="color" @bind="Props.Stroke" style="width:24px;height:24px;vertical-align:middle;border:none;background:none;" title="Color" />
+            </div>
+            <div style="margin-bottom:6px;">
+                <label style="font-size:0.95em;">Width:</label>
+                <input type="range" min="1" max="100" step="1" @bind="Props.StrokeWidth" style="width:120px;" title="Width slider" />
+                <input type="number" min="1" max="100" @bind="Props.StrokeWidth" style="width:32px;font-size:0.95em;" title="Width" />
+            </div>
+            <div style="margin-bottom:6px;">
+                <label style="font-size:0.95em;">Opacity:</label>
+                <input type="range" min="0" max="1" step="0.01" @bind="Props.Opacity" style="width:120px;" title="Opacity slider" />
+                <input type="number" min="0" max="1" step="0.01" @bind="Props.Opacity" style="width:32px;font-size:0.95em;" title="Opacity" />
+            </div>
+            <div style="margin-bottom:6px;">
+                <label style="font-size:0.95em;">Type:</label>
+                <select @bind="Props.LineType" style="width:48px;font-size:0.95em;" title="Type">
+                    <option value="solid">Solid</option>
+                    <option value="dashed">Dashed</option>
+                    <option value="dotted">Dotted</option>
+                </select>
+            </div>
+            <div style="margin-bottom:6px;">
+                <label style="font-size:0.95em;">Line Cap:</label>
+                <select @bind="Props.StrokeLineCap" style="width:64px;font-size:0.95em;" title="Stroke Line Cap">
+                    <option value="butt">Butt</option>
+                    <option value="round">Round</option>
+                    <option value="square">Square</option>
+                </select>
+            </div>
+            <div style="display:flex;gap:8px;">
+                <button class="app-btn" @onclick="OnDoneClicked" @onclick:stopPropagation title="Done">✔</button>
+                <button class="app-btn" @onclick="OnCancelClicked" @onclick:stopPropagation title="Cancel Edit">✖</button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div style="display:flex;flex-direction:column;gap:2px;width:100%;">
+            @if (Props is PenModel pen)
+            {
+                 <span title="Pen Name" style="width:100%;font-size:0.95em;overflow:hidden;text-overflow:ellipsis;display:block;">@pen.Name</span>
+            }
+        </div>           
+        <div 
+            title="@($"Width: {(double.IsNaN(Props.StrokeWidth) ? "-" : Props.StrokeWidth.ToString())} | Opacity: {(double.IsNaN(Props.Opacity) ? "-" : Props.Opacity.ToString())} | Type: {(Props.LineType == "-" ? "-" : Props.LineType)} | Line Cap: {(Props.StrokeLineCap == "-" ? "-" : Props.StrokeLineCap)}")"
+            style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;">
+            @if (
+                Props.Stroke == "-" ||
+                double.IsNaN(Props.StrokeWidth) ||
+                double.IsNaN(Props.Opacity) ||
+                Props.LineType == "-" ||
+                Props.StrokeLineCap == "-"
+            )
+            {
+                <span style="width:48px;display:inline-block;text-align:center;font-size:0.95em;">multiple</span>
+            }
+            else
+            {
+                <svg width="48" height="16" style="vertical-align:middle;">
+                    <line x1="4" y1="8" x2="44" y2="8" stroke=@Props.Stroke stroke-width=@Props.StrokeWidth opacity=@Props.Opacity
+                        stroke-dasharray="@(Props.LineType == "dashed" ? "8 4" : Props.LineType == "dotted" ? "2 4" : null)" />
+                </svg>
+            }
+            <button class="app-btn" @onclick="OnRemove" @onclick:stopPropagation title="Delete">✖</button>
+            <button class="app-btn" @onclick="ToggleEdit" @onclick:stopPropagation title="Edit">✎</button>
+        </div>
+        
+    }
+</div>
+
+@code {
+    [Parameter] public bool IsActive { get; set; } = false;
+    [Parameter] public PathProperties Props { get; set; } = default!;    
+    [Parameter] public EventCallback OnRemove { get; set; }
+    [Parameter] public EventCallback OnSetActive { get; set; }
+    [Parameter] public EventCallback<PathProperties> OnChanged { get; set; }    
+
+    private bool isEditing = false;
+
+    private void ToggleEdit() { isEditing = true; }
+    
+    private void OnDoneClicked()
+    {
+        isEditing = false;
+        OnChanged.InvokeAsync(Props);
+    }
+
+    private void OnCancelClicked()
+    {
+        isEditing = false;
+    }   
+}

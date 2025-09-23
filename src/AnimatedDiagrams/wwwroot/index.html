@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Animated Diagrams</title>
+    <base href="/" />
+    <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+    <div id="app" style="background:#2b2b2b;color:#eee;min-height:100vh;font-size:1.5rem;">Loading...</div>
+    <script>
+        // Fallback definitions in case localStorageInterop.js fails to load
+        (function(){
+            if(!window.localStorageInterop){
+                window.localStorageInterop = { setItem: function(k,v){ try{ localStorage.setItem(k,v);}catch(e){} } };
+            }
+            if(!window.canvasInterop){
+                window.canvasInterop = { getRect: function(el){ if(!el) return {x:0,y:0,width:0,height:0}; var r=el.getBoundingClientRect(); return {x:r.x,y:r.y,width:r.width,height:r.height}; } };
+                console.debug('[interop-fallback] canvasInterop injected inline');
+            }
+            // Legacy test hooks removed; exportInterop.js now authoritative
+        })();
+    </script>
+    <script src="localStorageInterop.js"></script>
+    <script src="themeInterop.js"></script>
+    <script src="exportInterop.js"></script>
+    <script src="sidebarSectionInterop.js"></script>
+    <script src="canvasAnimationInterop.js"></script>
+    <script src="_framework/blazor.webassembly.js"></script>
+</body>
+</html>

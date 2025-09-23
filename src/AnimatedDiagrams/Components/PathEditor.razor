@@ -1,0 +1,355 @@
+@using AnimatedDiagrams.Components
+@using AnimatedDiagrams.Models
+@using AnimatedDiagrams.Services
+@inject PathEditorState EditorState
+@inject SvgFileService Svg
+
+<div class="path-editor">
+    <div class="toolbar">
+    <button class="app-btn" @onclick="AddPause" title="Add a pause when animating">+ Pause</button>
+    <button class="app-btn" @onclick="AddSpeed" title="Add a speed change when animating">+ Speed</button>
+        @if(!string.IsNullOrEmpty(_exportMessage))
+        {
+            <span class="export-status">@_exportMessage</span>
+        }
+    </div>
+    <ul>
+        @for (int i = 0; i < EditorState.Items.Count; i++)
+        {
+            var item = EditorState.Items[i];
+            var isDropTarget = (_dragTargetIndex.HasValue && _dragTargetIndex.Value == i);
+            <li class="item @(item.Selected?"sel":null) @(isDropTarget?"drop-target":null)"
+                @onmousedown="(e) => Select(item, e)"
+                tabindex="0"
+                style="@(item.Selected ? "background:var(--active-bg);" : null)"
+                draggable="@((item is PauseHintItem p && _editingPauseId == p.Id) || (item is SpeedHintItem s && _editingSpeedId == s.Id) ? "false" : "true")"
+                @ondragstart="(e) => OnDragStart(e, EditorState.Items.IndexOf(item))"
+                @ondragover:preventDefault="true" @ondragover="(e) => OnDragOver(e, EditorState.Items.IndexOf(item))"
+                @ondragenter:preventDefault="true" @ondragenter="(e) => OnDragEnter(e, EditorState.Items.IndexOf(item))"
+                @ondrop:preventDefault="true" @ondrop="(e) => OnDrop(e, EditorState.Items.IndexOf(item))"
+                @ondragend="OnDragEnd"
+                title="Drag to re-order..."
+            >
+                @if (item is PauseHintItem pause)
+                {
+                    <div class="stroke-style-editor active" style="display:flex;align-items:center;gap:10px;padding:4px 10px;">
+                        @if (_editingPauseId == pause.Id)
+                        {
+                            <span style="font-weight:600;color:#ffe600;">Pause</span>
+                            <div style="display:flex;flex-direction:column;gap:8px;">
+                                <div style="display:flex;align-items:center;gap:10px;">
+                                    <input type="range" min="0" max="5000" step="100" style="width:100px;" @bind="pause.Milliseconds" @ondragstart:preventDefault="true" />
+                                    <input type="number" min="0" max="10000" step="100" style="width:70px;font-size:0.95em;" @bind="pause.Milliseconds" @bind:event="oninput" @ondragstart:preventDefault="true" />
+                                    <span style="font-size:0.95em;">ms</span>
+                                </div>
+                                <div style="display:flex;gap:8px;">
+                                    <button class="app-btn" @onclick="() => DoneEditPause()" title="Done">✔</button>
+                                    <button class="app-btn" @onclick="() => CancelEditPause()" title="Cancel">✖</button>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <span style="font-weight:600;color:#ffe600;">Pause</span>
+                            <span style="font-size:0.95em;">@pause.Milliseconds ms</span>
+                            <button class="app-btn" @onclick="() => EditPause(pause.Id)" title="Edit">✎</button>
+                            <button class="app-btn" @onclick="() => Delete(item)" title="Delete">✖</button>
+                        }
+                    </div>
+                }
+                else if (item is SpeedHintItem speed)
+                {
+                    <div class="stroke-style-editor active" style="display:flex;align-items:center;gap:10px;padding:4px 10px;">
+                        @if (_editingSpeedId == speed.Id)
+                        {
+                            <span style="font-weight:600;color:#00e676;">Speed</span>
+                            <div style="display:flex;flex-direction:column;gap:8px;">
+                                <div style="display:flex;align-items:center;gap:10px;">
+                                    <input type="range" min="0.1" max="4" step="0.01" style="width:100px;" @bind="speed.Multiplier" @ondragstart:preventDefault="true" />
+                                    <input type="number" min="0.1" max="10" step="0.01" style="width:70px;font-size:0.95em;" @bind="speed.Multiplier" @bind:event="oninput" @ondragstart:preventDefault="true" />
+                                    <span style="font-size:0.95em;">x</span>
+                                </div>
+                                <div style="display:flex;gap:8px;">
+                                    <button class="app-btn" @onclick="() => DoneEditSpeed()" title="Done">✔</button>
+                                    <button class="app-btn" @onclick="() => CancelEditSpeed()" title="Cancel">✖</button>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <span style="font-weight:600;color:#00e676;">Speed</span>
+                            <span style="font-size:0.95em;">@speed.Multiplier x</span>
+                            <button class="app-btn" @onclick="() => EditSpeed(speed.Id)" title="Edit">✎</button>
+                            <button class="app-btn" @onclick="() => Delete(item)" title="Delete">✖</button>
+                        }
+                    </div>
+                }
+                else
+                {
+                    @RenderLabel(item)
+                }
+            </li>
+        }
+@code {
+    private string? _editingPauseId;
+    private string? _editingSpeedId;
+
+    void EditPause(string id) => _editingPauseId = id;
+    void DoneEditPause() => _editingPauseId = null;
+    void CancelEditPause() => _editingPauseId = null;
+
+    void EditSpeed(string id) => _editingSpeedId = id;
+    void DoneEditSpeed() => _editingSpeedId = null;
+    void CancelEditSpeed() => _editingSpeedId = null;
+}
+    </ul>
+</div>
+
+@if (EditorState.SelectedItems.OfType<SvgPathItem>().Any())
+{
+    var selectedPaths = EditorState.SelectedItems.OfType<SvgPathItem>().ToList();
+    var first = selectedPaths.First();
+    string stokeColour = selectedPaths.Select(p => p.Stroke).Distinct().Count() == 1 ? first.Stroke : "-";
+    double strokeWidth = selectedPaths.Select(p => p.StrokeWidth).Distinct().Count() == 1 ? first.StrokeWidth : double.NaN;
+    double opacity = selectedPaths.Select(p => p.Opacity).Distinct().Count() == 1 ? first.Opacity : double.NaN;
+    string lineType = selectedPaths.Select(p => p.LineType).Distinct().Count() == 1 ? first.LineType : "-";
+    string strokeLineCap = selectedPaths.Select(p => p.StrokeLineCap).Distinct().Count() == 1 ? first.StrokeLineCap : "-";
+
+    var mixedProps = new EmptyPathProperties
+    {
+        Stroke = stokeColour,
+        StrokeWidth = strokeWidth,
+        Opacity = opacity,
+        LineType = lineType,
+        StrokeLineCap = strokeLineCap
+    };
+    <label>Selection</label>
+    <StrokeStyleEditor
+        Props="mixedProps"
+        OnChanged="OnStyleChanged"
+        OnRemove="DeleteSelectedItems"
+    />
+    <div class="path-editor-actions" style="margin-top:12px;display:flex;gap:8px;">
+    <button class="app-btn" @onclick="MoveSelectedUp" disabled="@(EditorState.SelectedItems.Count == 0)" title="Move up">▲</button>
+    <button class="app-btn" @onclick="MoveSelectedDown" disabled="@(EditorState.SelectedItems.Count == 0)" title="Move down">▼</button>
+    <button class="app-btn" @onclick="EditNodes" disabled="@(EditorState.SelectedItems.Count != 1 || !(EditorState.SelectedItems.FirstOrDefault() is SvgPathItem))" title="Edit">✎</button>
+    </div>
+}
+
+@code {
+    protected override void OnInitialized()
+    {
+        EditorState.Changed += StateHasChanged;
+    }
+
+    void EditNodes() => EditorState.ToggleEditingSelectedPaths();
+    
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (EditorState.EditingSelectedPaths && (EditorState.SelectedItems.Count != 1 || !(EditorState.SelectedItems.FirstOrDefault() is SvgPathItem)))
+        {            
+            StateHasChanged();
+        }
+    }
+
+    public void OnStyleChanged(PathProperties updated)
+    {
+        EditorState.ApplyStyleToSelected(
+            updated.Stroke != "-" ? updated.Stroke : null,
+            !double.IsNaN(updated.StrokeWidth) ? updated.StrokeWidth : null,
+            !double.IsNaN(updated.Opacity) ? updated.Opacity : null,
+            updated.LineType != "-" ? updated.LineType : null,
+            updated.StrokeLineCap != "-" ? updated.StrokeLineCap : null
+        );
+    }
+
+    string RenderLabel(PathItem item) => item switch
+    {
+        PauseHintItem p => $"Pause {p.Milliseconds}ms [{item.Id}]",
+        SpeedHintItem s => $"Speed x{s.Multiplier} [{item.Id}]",
+        SvgPathItem p => $"Path [{(p.Id)}]",
+        SvgCircleItem => $"Circle [{item.Id}]",
+        _ => $"{item.ItemType} [{item.Id}]"
+    };
+
+    void Select(PathItem item, MouseEventArgs e)
+    {
+        // Ctrl: toggle selection, Shift: contiguous selection
+        if (e.CtrlKey)
+        {
+            var selected = EditorState.SelectedItems.ToList();
+            if (item.Selected)
+                selected.Remove(item);
+            else
+                selected.Add(item);
+            EditorState.SelectMultiple(selected);
+            EditorState.Highlight(item);
+        }
+        else if (e.ShiftKey && EditorState.SelectedItems.Count > 0)
+        {
+            var last = EditorState.SelectedItems.Last();
+            var start = EditorState.Items.IndexOf(last);
+            var end = EditorState.Items.IndexOf(item);
+            if (start >= 0 && end >= 0)
+            {
+                var range = start < end
+                    ? EditorState.Items.Skip(start).Take(end - start + 1)
+                    : EditorState.Items.Skip(end).Take(start - end + 1);
+                EditorState.SelectMultiple(range);
+                EditorState.Highlight(item);
+            }
+        }
+        else
+        {
+            EditorState.Select(item);
+            EditorState.Highlight(item);
+        }
+    }
+    void Delete(PathItem item) => EditorState.Delete(item);
+
+    void DeleteSelectedItems()
+    {
+        EditorState.DeleteSelected();
+        EditorState.Select(null);
+        StateHasChanged();
+    }
+    
+    void Move(PathItem item, int delta) => EditorState.Move(item, delta);
+
+    void AddPause()
+    {
+        var target = EditorState.SelectedItems.FirstOrDefault();
+        var p = new PauseHintItem();
+        if (target != null) EditorState.InsertBefore(target, p); else EditorState.Add(p);
+    }
+    void AddSpeed()
+    {
+        var target = EditorState.SelectedItems.FirstOrDefault();
+        var s = new SpeedHintItem();
+        if (target != null) EditorState.InsertBefore(target, s); else EditorState.Add(s);
+    }
+
+    void NewFile()
+    {
+        if (EditorState.IsDirty && !ConfirmDiscard) return; // placeholder; implement confirm
+        EditorState.New();
+    }
+
+    bool ConfirmDiscard => true; // TODO JS confirm
+
+    ElementReference _fileInput;
+    async void OnFile(ChangeEventArgs e)
+    {
+        try
+        {
+            var files = await JS.InvokeAsync<IJSObjectReference>("import", "./fileInterop.js");
+            var text = await files.InvokeAsync<string>("readFileText", _fileInput);
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                Svg.ImportSvg(text);
+                _exportMessage = $"Imported SVG ({text.Length} chars)";
+            }
+            else
+            {
+                _exportMessage = "No SVG file selected or file was empty.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _exportMessage = $"Import failed: {ex.Message}";
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+    async void TriggerImport()
+    {
+        var files = await JS.InvokeAsync<IJSObjectReference>("import", "./fileInterop.js");
+        await files.InvokeVoidAsync("triggerFileInput", _fileInput);
+    }
+
+    [Inject] IJSRuntime JS { get; set; } = default!;
+    async Task Export()
+    {
+        if (EditorState.Items.Count == 0)
+        {
+            _exportMessage = "Nothing to export";
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+        var xml = Svg.ExportSvg();
+        try
+        {
+            var files = await JS.InvokeAsync<IJSObjectReference>("import", "./exportInterop.js");
+            await files.InvokeVoidAsync("setAndDownload", xml, $"diagram-{DateTime.UtcNow:yyyyMMddHHmmss}.svg");
+            _exportMessage = $"Exported {xml.Length} chars";
+        }
+        catch { }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    string? _exportMessage;    
+
+    // --- Drag and drop logic ---
+    void MoveSelectedUp()
+    {
+        foreach (var item in EditorState.SelectedItems.OrderBy(i => EditorState.Items.IndexOf(i)).ToList())
+        {
+            EditorState.Move(item, -1);
+        }
+    }
+    void MoveSelectedDown()
+    {
+        foreach (var item in EditorState.SelectedItems.OrderByDescending(i => EditorState.Items.IndexOf(i)).ToList())
+        {
+            EditorState.Move(item, 1);
+        }
+    }
+
+    int? _dragSourceIndex = null;
+    int? _dragTargetIndex = null;
+
+    void OnDrop(DragEventArgs e, int index)
+    {        
+        if (_dragSourceIndex.HasValue && _dragTargetIndex.HasValue)
+        {
+            var selected = EditorState.SelectedItems.ToList();
+            int sourceIdx = _dragSourceIndex.Value;
+            int targetIdx = _dragTargetIndex.Value;
+            foreach (var item in selected)
+            {
+                int originalIndex = sourceIdx;
+                int delta = targetIdx - originalIndex;
+                EditorState.Move(item, delta);
+            }
+            EditorState.MarkSaved();
+            StateHasChanged();
+        }
+        _dragSourceIndex = null;
+        _dragTargetIndex = null;
+    }
+
+    void OnDragStart(DragEventArgs e, int index)
+    {
+        _dragSourceIndex = index;
+        e.DataTransfer.EffectAllowed = "move";
+    }
+
+    void OnDragOver(DragEventArgs e, int index)
+    {
+        if (_dragSourceIndex != index)
+        {
+            _dragTargetIndex = index;
+        }
+        
+    }
+
+    void OnDragEnter(DragEventArgs e, int index)
+    {
+        _dragTargetIndex = index;
+    }
+
+    void OnDragEnd()
+    {
+        _dragSourceIndex = null;
+        _dragTargetIndex = null;
+    }
+}

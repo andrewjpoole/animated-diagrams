@@ -1,0 +1,30 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AnimatedDiagrams", "AnimatedDiagrams\AnimatedDiagrams.csproj", "{3B17356A-CDC9-78B1-ED39-A9F35B77A472}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AnimatedDiagrams.Tests", "AnimatedDiagrams.Tests\AnimatedDiagrams.Tests.csproj", "{8D7F0F8E-8D6A-4C21-8A6B-1234567890AB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{3B17356A-CDC9-78B1-ED39-A9F35B77A472}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3B17356A-CDC9-78B1-ED39-A9F35B77A472}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3B17356A-CDC9-78B1-ED39-A9F35B77A472}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3B17356A-CDC9-78B1-ED39-A9F35B77A472}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8D7F0F8E-8D6A-4C21-8A6B-1234567890AB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8D7F0F8E-8D6A-4C21-8A6B-1234567890AB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8D7F0F8E-8D6A-4C21-8A6B-1234567890AB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8D7F0F8E-8D6A-4C21-8A6B-1234567890AB}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {2D77D6D6-7B24-4DF0-AA70-8D14DEB728EF}
+	EndGlobalSection
+EndGlobal

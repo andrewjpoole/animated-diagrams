@@ -1,0 +1,83 @@
+@using AnimatedDiagrams.Models
+@inject StyleRuleService RuleService
+@inject PathEditorState Editor
+
+<div class="style-rules">
+    <h3>Style Rules</h3>
+    <button class="app-btn" @onclick="AddRule">Add Rule</button>
+    <button class="app-btn" @onclick="ShowMatches" disabled="@(Selected==null)">Show Matches</button>
+    <button class="app-btn" @onclick="Duplicate" disabled="@(Selected==null)">Duplicate</button>
+    <ul>
+        @foreach (var r in RuleService.Rules)
+        {
+            <li @onclick="()=> Select(r)" class="rule @(r==Selected?"sel":null)">
+                <input value="@r.Name" @onchange="e=> { r.Name = e.Value?.ToString()??r.Name; SaveRules(); }" />
+                <button class="app-btn" @onclick="(e)=> Delete(r)">✖</button>
+            </li>
+        }
+    </ul>
+    @if (Selected != null)
+    {
+        <div class="conditions">
+            <h4>Conditions</h4>
+            @foreach (var c in Selected.Conditions)
+            {
+                <div>
+                    <select @onchange="e=> { c.Field = Enum.Parse<StyleConditionField>(e.Value!.ToString()!); SaveRules(); }">
+                        @foreach (var f in Enum.GetValues<StyleConditionField>())
+                        {
+                            <option selected="@(f==c.Field)">@f</option>
+                        }
+                    </select>
+                    <select @onchange="e=> { c.Comparison = Enum.Parse<StyleComparison>(e.Value!.ToString()!); SaveRules(); }">
+                        @foreach (var comp in Enum.GetValues<StyleComparison>())
+                        {
+                            <option selected="@(comp==c.Comparison)">@comp</option>
+                        }
+                    </select>
+                    <input type="number" value="@c.Value" @onchange="e=> { c.Value = double.Parse(e.Value!.ToString()!); SaveRules(); }" />
+                </div>
+            }
+            <button class="app-btn" @onclick="AddCondition">+ Condition</button>
+        </div>
+        <div class="actions">
+            <h4>Actions</h4>
+            @foreach (var a in Selected.Actions)
+            {
+                <div>
+                    <select @onchange="e=> { a.Field = Enum.Parse<StyleActionField>(e.Value!.ToString()!); SaveRules(); }">
+                        @foreach (var f in Enum.GetValues<StyleActionField>())
+                        {
+                            <option selected="@(f==a.Field)">@f</option>
+                        }
+                    </select>
+                    <input type="number" value="@a.Value" @onchange="e=> { a.Value = double.Parse(e.Value!.ToString()!); SaveRules(); }" />
+                </div>
+            }
+            <button class="app-btn" @onclick="AddAction">+ Action</button>
+        </div>
+    }
+</div>
+
+@code {
+    private StyleRule? Selected;
+
+    void AddRule()
+    {
+        var rule = new StyleRule{ Name = "Rule " + (RuleService.Rules.Count+1) };
+        RuleService.Add(rule);
+        Selected = rule;
+    }
+    void Delete(StyleRule r)
+    {
+        RuleService.Delete(r);
+        if (Selected == r) Selected = null;
+    }
+    void Select(StyleRule r) { Selected = r; ClearHighlights(); }
+    void Duplicate(){ if (Selected!=null) RuleService.Duplicate(Selected); }
+    void AddCondition(){ if (Selected!=null){ Selected.Conditions.Add(new StyleRuleCondition()); SaveRules(); } }
+    void AddAction(){ if (Selected!=null){ Selected.Actions.Add(new StyleRuleAction()); SaveRules(); } }
+    void SaveRules() => RuleService.SaveRules();
+    void ShowMatches(){ if (Selected!=null){ ClearHighlights(); RuleService.HighlightMatches(Editor.Items, Selected); } }
+    void ClearHighlights(){ foreach(var i in Editor.Items) i.Highlight=false; }
+}

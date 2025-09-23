@@ -1,0 +1,83 @@
+@using AnimatedDiagrams.Models
+@using AnimatedDiagrams.Components
+@inject PensService PensService
+@inject PathEditorState Editor
+@inject BrowserLocalStorage LocalStorage
+
+<div class="pens-panel">
+    <div class="pens-list" >
+        @for (int i = 0; i < PensService.Pens.Count; i++)
+        {
+            var pen = PensService.Pens[i];
+            bool isActive = PensService.ActivePenId == pen.PenId;
+            <StrokeStyleEditor
+                Props="pen"
+                IsActive="isActive"
+                OnRemove="EventCallback.Factory.Create(this, () => RemovePen(pen))"
+                OnSetActive="EventCallback.Factory.Create(this, () => SetActivePen(pen.PenId))"
+                OnChanged="EventCallback.Factory.Create(this, (PathProperties updated) => SavePens())"
+            />
+        }
+    <button class="app-btn" @onclick="AddPen" title="Add new pen">Add Pen</button>
+    </div>
+</div>
+
+@code {
+    private const string PensKey = "app-pens";
+
+    void AddPen()
+    {
+        PensService.Pens.Add(new PenModel { Name = $"Pen {PensService.Pens.Count + 1}", Stroke = "#000000", StrokeWidth = 2, Opacity = 1.0, LineType = "solid" });
+        SavePens();
+    }    
+
+    void RemovePen(PenModel pen)
+    {
+        PensService.Pens.Remove(pen);
+        SavePens();
+    }    
+
+    void SavePens()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(PensService.Pens);
+        LocalStorage.SetItem(PensKey, json);
+    }
+
+    void LoadPens()
+    {
+        var json = LocalStorage.GetItem(PensKey);
+        if (!string.IsNullOrWhiteSpace(json))
+        {
+            try
+            {
+                var pens = System.Text.Json.JsonSerializer.Deserialize<List<PenModel>>(json);
+                if (pens != null)
+                {
+                    PensService.LoadFromList(pens);
+                }
+            }
+            catch { }
+        }
+    
+    }
+    void SetActivePen(Guid penId)
+    {        
+        PensService.SetActivePen(penId);
+    }
+
+    protected override void OnInitialized()
+    {
+        LoadPens();
+        PensService.Changed += OnPensChanged;
+    }
+
+    private void OnPensChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        PensService.Changed -= OnPensChanged;
+    }
+}

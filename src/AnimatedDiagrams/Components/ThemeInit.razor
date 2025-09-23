@@ -1,0 +1,10 @@
+@inject IJSRuntime JS
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try { await JS.InvokeVoidAsync("themeInterop.init"); } catch { }
+        }
+    }
+}

@@ -1,0 +1,49 @@
+@using AnimatedDiagrams.Models
+@inject PathEditorState Editor
+@inject IJSRuntime JS
+
+<div class="animation-recording-panel">
+    <h3>Animation & Recording</h3>
+    <label>Animation Speed <input type="number" @bind="AnimationSpeed" step="0.1" /></label>
+    <div style="margin-bottom:12px;">
+        <button class="app-btn" @onclick="Play">Start Animation</button>
+        <button class="app-btn" @onclick="Reset">Reset</button>
+        <button class="app-btn" @onclick="ShowAll">Show All</button>
+    </div>
+    <h4>Recording</h4>
+    <label>FPS <input type="number" @bind-value="Options.Fps" /></label>
+    <label>Width <input type="number" @bind-value="Options.Width" /></label>
+    <label>Height <input type="number" @bind-value="Options.Height" /></label>
+    <label>Quality <input type="number" @bind-value="Options.Quality" /></label>
+    <label>End Pause (ms) <input type="number" @bind-value="Options.EndPauseMs" /></label>
+    <label>Thumbnail Start <input type="checkbox" @bind-value="Options.InsertInitialThumbnail" /></label>
+    <label>Pre Blank (ms) <input type="number" @bind-value="Options.PreAnimationBlankMs" /></label>
+    <button class="app-btn" @onclick="StartRecording">Record</button>
+</div>
+
+@code {
+    private double AnimationSpeed = 5.0;
+    private RecordingOptions Options = new();
+
+    async Task Play()
+    {
+    Editor.SetMode(EditorMode.Animation);
+    await JS.InvokeVoidAsync("canvasAnimationInterop.animatePaths", ".diagram-canvas", AnimationSpeed, null);
+    }
+
+    void Reset()
+    {
+        Editor.SetMode(EditorMode.Select);
+    }
+
+    void ShowAll()
+    {
+        Editor.SetMode(EditorMode.Select);
+    }
+
+    async Task StartRecording()
+    {
+    // Pass AnimationSpeed and DiagramName to JS for consistent animation speed and file naming
+    await JS.InvokeVoidAsync("canvasAnimationInterop.recordWebm", ".diagram-canvas", Options.Fps, Options.Width, Options.Height, Options.Quality, Options.EndPauseMs, Options.InsertInitialThumbnail, Options.PreAnimationBlankMs, AnimationSpeed, Editor.DiagramName);
+    }
+}

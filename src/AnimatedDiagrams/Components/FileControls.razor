@@ -1,0 +1,97 @@
+@inject PathEditorState Editor
+@inject SvgFileService Svg
+@inject IJSRuntime JS
+<div class="file-controls">
+    <button class="app-btn" @onclick="NewFile">New</button>
+    <input type="file" @ref="_fileInput" @onchange="OnFile" accept=".svg" style="display:none" />
+    <button class="app-btn" @onclick="TriggerImport">Import</button>
+    <button class="app-btn" @onclick="Export">Export</button>
+    <div style="margin-top:8px;">
+        @if (_editingName)
+        {
+            <input type="text" @bind="_diagramNameEdit" style="width:160px;" @onkeydown="OnNameEditKeyDown" />
+            <button class="app-btn" @onclick="SaveDiagramName" title="Save"><span style="font-size:1.2em;">✔</span></button>
+            <button class="app-btn" @onclick="CancelDiagramNameEdit" title="Cancel"><span style="font-size:1.2em;">✖</span></button>
+        }
+        else
+        {
+            <span style="font-weight:500; margin-right:8px;">@Editor.DiagramName</span>
+            <button class="app-btn" @onclick="EditDiagramName" title="Edit"><span style="font-size:1.2em;">✎</span></button>
+        }
+    </div>
+
+</div>
+
+@code {
+    ElementReference _fileInput;
+    bool _editingName = false;
+    string _diagramNameEdit = "";
+    void EditDiagramName()
+    {
+        _diagramNameEdit = Editor.DiagramName ?? "";
+        _editingName = true;
+    }
+
+    void SaveDiagramName()
+    {
+        Editor.DiagramName = _diagramNameEdit.Trim();
+        _editingName = false;
+    }
+
+    void CancelDiagramNameEdit()
+    {
+        _editingName = false;
+    }
+
+    void OnNameEditKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            SaveDiagramName();
+        }
+        else if (e.Key == "Escape")
+        {
+            CancelDiagramNameEdit();
+        }
+    }
+    void NewFile() {
+        Editor.New();
+        Editor.SetViewport(1.0, 0, 0); // Reset zoom and pan
+        Editor.ClearHighlights();
+        Editor.DiagramName = "animated-diagram";
+    }
+    async void OnFile(ChangeEventArgs e)
+    {
+        var files = await JS.InvokeAsync<IJSObjectReference>("import", "./fileInterop.js");
+        // Use JS interop to get the file name robustly
+        var fileName = await files.InvokeAsync<string>("getSelectedFileName", _fileInput);
+        var text = await files.InvokeAsync<string>("readFileText", _fileInput);
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            Svg.ImportSvg(text);
+            if (!string.IsNullOrWhiteSpace(fileName))
+            {
+                var nameOnly = fileName.EndsWith(".svg", StringComparison.OrdinalIgnoreCase) ? fileName.Substring(0, fileName.Length - 4) : fileName;
+                Editor.DiagramName = nameOnly;
+            }
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+    async void TriggerImport()
+    {
+        if (_fileInput.Context == null)
+        {
+            return;
+        }
+        var files = await JS.InvokeAsync<IJSObjectReference>("import", "./fileInterop.js");
+        await files.InvokeVoidAsync("triggerFileInput", _fileInput);
+    }
+    async void Export()
+    {
+        if (Editor.Items.Count == 0)
+            return;
+        var xml = Svg.ExportSvg();
+        var files = await JS.InvokeAsync<IJSObjectReference>("import", "./exportInterop.js");
+        await files.InvokeVoidAsync("setAndDownload", xml, $"diagram-{DateTime.UtcNow:yyyyMMddHHmmss}.svg");
+    }
+}

@@ -51,13 +51,64 @@
             try
             {
                 var pens = System.Text.Json.JsonSerializer.Deserialize<List<PenModel>>(json);
-                if (pens != null)
+                if (pens != null && pens.Count > 0)
                 {
                     PensService.LoadFromList(pens);
+                    return;
                 }
             }
             catch { }
         }
+        // If no pens found, load defaults
+        var defaultPens = new List<PenModel>
+        {
+            new PenModel {
+                PenId = Guid.Parse("694f1d84-8159-49c2-bd7b-f4d9a154e945"),
+                Name = "Black",
+                Stroke = "#000000",
+                StrokeWidth = 4,
+                Opacity = 1,
+                LineType = "solid",
+                StrokeLineCap = "round"
+            },
+            new PenModel {
+                PenId = Guid.Parse("d75223c6-703f-4310-bb8e-73e08cad2a7c"),
+                Name = "Blue",
+                Stroke = "#00aaff",
+                StrokeWidth = 4,
+                Opacity = 1,
+                LineType = "solid",
+                StrokeLineCap = "round"
+            },
+            new PenModel {
+                PenId = Guid.Parse("d2c1c705-baff-4f67-9b71-d80890b1c0cc"),
+                Name = "Green highlight",
+                Stroke = "#00ffbf",
+                StrokeWidth = 50,
+                Opacity = 0.35,
+                LineType = "solid",
+                StrokeLineCap = "butt"
+            },
+            new PenModel {
+                PenId = Guid.Parse("2b24e8e2-dbc7-4957-bf84-5bddc9741c20"),
+                Name = "Red highlight",
+                Stroke = "#ff0000",
+                StrokeWidth = 50,
+                Opacity = 0.32,
+                LineType = "solid",
+                StrokeLineCap = "butt"
+            },
+            new PenModel {
+                PenId = Guid.Parse("8fa79e57-f7e7-4303-868e-01e2fe793fdd"),
+                Name = "Gray dashed",
+                Stroke = "#858585",
+                StrokeWidth = 4,
+                Opacity = 0.51,
+                LineType = "dashed",
+                StrokeLineCap = "round"
+            }
+        };
+        PensService.LoadFromList(defaultPens);
     
     }
     void SetActivePen(Guid penId)

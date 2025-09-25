@@ -6,8 +6,8 @@
 
 <div class="path-editor">
     <div class="toolbar">
-    <button class="app-btn" @onclick="AddPause" title="Add a pause when animating">+ Pause</button>
-    <button class="app-btn" @onclick="AddSpeed" title="Add a speed change when animating">+ Speed</button>
+    <button class="app-btn" @onclick="AddPause" title="Add a pause when animating">⏸️ Pause</button>
+    <button class="app-btn" @onclick="AddSpeed" title="Add a speed change when animating">⏩ Speed</button>
         @if(!string.IsNullOrEmpty(_exportMessage))
         {
             <span class="export-status">@_exportMessage</span>
@@ -90,18 +90,6 @@
                 }
             </li>
         }
-@code {
-    private string? _editingPauseId;
-    private string? _editingSpeedId;
-
-    void EditPause(string id) => _editingPauseId = id;
-    void DoneEditPause() => _editingPauseId = null;
-    void CancelEditPause() => _editingPauseId = null;
-
-    void EditSpeed(string id) => _editingSpeedId = id;
-    void DoneEditSpeed() => _editingSpeedId = null;
-    void CancelEditSpeed() => _editingSpeedId = null;
-}
     </ul>
 </div>
 
@@ -132,17 +120,30 @@
     <div class="path-editor-actions" style="margin-top:12px;display:flex;gap:8px;">
     <button class="app-btn" @onclick="MoveSelectedUp" disabled="@(EditorState.SelectedItems.Count == 0)" title="Move up">▲</button>
     <button class="app-btn" @onclick="MoveSelectedDown" disabled="@(EditorState.SelectedItems.Count == 0)" title="Move down">▼</button>
-    <button class="app-btn" @onclick="EditNodes" disabled="@(EditorState.SelectedItems.Count != 1 || !(EditorState.SelectedItems.FirstOrDefault() is SvgPathItem))" title="Edit">✎</button>
+    <button class="app-btn" @onclick="EditNodes" disabled="@(EditorState.SelectedItems.Count != 1 || !(EditorState.SelectedItems.FirstOrDefault() is SvgPathItem))" title="Edit nodes">🔧</button>
+    <button class="app-btn" @onclick="SimplifySelectedItems" disabled="@(EditorState.SelectedItems.Count == 0)" title="Simplify">♻️</button>
     </div>
 }
 
 @code {
+    private string? _editingPauseId;
+    private string? _editingSpeedId;
+
+    void EditPause(string id) => _editingPauseId = id;
+    void DoneEditPause() => _editingPauseId = null;
+    void CancelEditPause() => _editingPauseId = null;
+
+    void EditSpeed(string id) => _editingSpeedId = id;
+    void DoneEditSpeed() => _editingSpeedId = null;
+    void CancelEditSpeed() => _editingSpeedId = null;
     protected override void OnInitialized()
     {
         EditorState.Changed += StateHasChanged;
     }
 
     void EditNodes() => EditorState.ToggleEditingSelectedPaths();
+
+    void SimplifySelectedItems() => EditorState.SimplifySelectedItems();
     
     protected override void OnAfterRender(bool firstRender)
     {

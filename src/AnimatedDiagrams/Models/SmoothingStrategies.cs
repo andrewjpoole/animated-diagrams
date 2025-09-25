@@ -6,7 +6,8 @@ namespace AnimatedDiagrams.Models
     {
         QuadraticBezier,
         Linear,
-        CatmullRom
+        CatmullRom,
+        SimplifiedBezier
     }
 
     public static class SmoothingStrategies
@@ -54,6 +55,7 @@ namespace AnimatedDiagrams.Models
                 SmoothingType.QuadraticBezier => QuadraticBezier(pts, step),
                 SmoothingType.Linear => Linear(pts),
                 SmoothingType.CatmullRom => CatmullRom(pts),
+                SmoothingType.SimplifiedBezier => SimplifyWithBeziers(pts),
                 _ => QuadraticBezier(pts, step)
             };
         }
@@ -115,5 +117,66 @@ namespace AnimatedDiagrams.Models
             return sb.ToString();
         }
 
+        /// <summary>
+        /// Simplifies a path using Ramer-Douglas-Peucker and fits quadratic Bezier segments.
+        /// Returns an SVG path string.
+        /// </summary>
+        public static string SimplifyWithBeziers(List<(double x, double y)> pts, double tolerance = 2.0)
+        {
+            var simplified = RamerDouglasPeucker(pts, tolerance);
+            if (simplified.Count < 3) return "";
+            var sb = new System.Text.StringBuilder();
+            sb.Append($"M {simplified[0].x} {simplified[0].y} ");
+            for (int i = 0; i < simplified.Count - 2; i += 2)
+            {
+                var p0 = simplified[i];
+                var p1 = simplified[i + 1];
+                var p2 = simplified[Math.Min(i + 2, simplified.Count - 1)];
+                sb.Append($"Q {p1.x} {p1.y} {p2.x} {p2.y} ");
+            }
+            return sb.ToString().Trim();
+        }
+
+        // Ramer-Douglas-Peucker algorithm for path simplification
+        private static List<(double x, double y)> RamerDouglasPeucker(List<(double x, double y)> pts, double epsilon)
+        {
+            if (pts.Count < 3) return new List<(double x, double y)>(pts);
+            int index = -1;
+            double maxDist = 0;
+            for (int i = 1; i < pts.Count - 1; i++)
+            {
+                double dist = PerpendicularDistance(pts[i], pts[0], pts[^1]);
+                if (dist > maxDist)
+                {
+                    index = i;
+                    maxDist = dist;
+                }
+            }
+            if (maxDist > epsilon)
+            {
+                var left = RamerDouglasPeucker(pts.GetRange(0, index + 1), epsilon);
+                var right = RamerDouglasPeucker(pts.GetRange(index, pts.Count - index), epsilon);
+                left.RemoveAt(left.Count - 1);
+                left.AddRange(right);
+                return left;
+            }
+            else
+            {
+                return new List<(double x, double y)> { pts[0], pts[^1] };
+            }
+        }
+
+        // Helper for RDP: perpendicular distance from point to line
+        private static double PerpendicularDistance((double x, double y) pt, (double x, double y) lineStart, (double x, double y) lineEnd)
+        {
+            double dx = lineEnd.x - lineStart.x;
+            double dy = lineEnd.y - lineStart.y;
+            if (dx == 0 && dy == 0)
+                return Math.Sqrt((pt.x - lineStart.x) * (pt.x - lineStart.x) + (pt.y - lineStart.y) * (pt.y - lineStart.y));
+            double t = ((pt.x - lineStart.x) * dx + (pt.y - lineStart.y) * dy) / (dx * dx + dy * dy);
+            double projX = lineStart.x + t * dx;
+            double projY = lineStart.y + t * dy;
+            return Math.Sqrt((pt.x - projX) * (pt.x - projX) + (pt.y - projY) * (pt.y - projY));
+        }
     }
 }

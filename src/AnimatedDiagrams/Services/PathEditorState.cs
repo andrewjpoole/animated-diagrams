@@ -21,7 +21,7 @@ public class PathEditorState
     {
         PensSvc = pensSvc;
     }
-    
+
     public void ResetViewport()
     {
         SetViewport(1.0, 0, 0);
@@ -91,19 +91,19 @@ public class PathEditorState
     public void Add(PathItem item)
     {
         Items.Add(item);
-        MarkDirty();        
+        MarkDirty();
     }
 
     public void Add(SvgPathItem item)
     {
         Items.Add(item);
-        MarkDirty();        
+        MarkDirty();
     }
 
     public void Add(SvgCircleItem item)
     {
         Items.Add(item);
-        MarkDirty();        
+        MarkDirty();
     }
 
     public void InsertBefore(PathItem reference, PathItem newItem)
@@ -115,7 +115,7 @@ public class PathEditorState
     }
 
     public void Delete(PathItem item)
-    {        
+    {
         if (Items.Remove(item))
         {
             MarkDirty();
@@ -144,7 +144,8 @@ public class PathEditorState
 
     public void Select(PathItem? item)
     {
-        if (item == null) {
+        if (item == null)
+        {
             foreach (var i in Items) i.Selected = false;
             SelectedItems.Clear();
             Changed?.Invoke();
@@ -156,7 +157,7 @@ public class PathEditorState
         SelectedItems.Clear();
         SelectedItems.Add(item);
         Changed?.Invoke();
-        
+
     }
 
     public void SelectMultiple(IEnumerable<PathItem> items)
@@ -179,7 +180,7 @@ public class PathEditorState
             EditingSelectedPaths = !EditingSelectedPaths;
 
         Changed?.Invoke();
-    }   
+    }
 
     public void MarkSaved()
     {
@@ -191,7 +192,7 @@ public class PathEditorState
     {
         IsDirty = true;
         Changed?.Invoke();
-    }    
+    }
 
     public void ApplyStyleToSelected(string? color, double? strokeWidth, double? opacity, string? lineType, string? strokeLineCap)
     {
@@ -221,6 +222,16 @@ public class PathEditorState
                 if (color != null)
                     circle.Fill = color;
             }
+        }
+        Changed?.Invoke();
+    }
+    
+    public void SimplifySelectedItems()
+    {
+        foreach (var item in Items.OfType<SvgPathItem>())
+        {
+            var points = PathData.ToPoints(item.D);
+            item.D = SmoothingStrategies.SimplifyWithBeziers(points);
         }
         Changed?.Invoke();
     }

@@ -239,8 +239,7 @@ window.canvasAnimationInterop = {
     animateAndRecord: async function(svg, ctx, width, height, fps, animationSpeed) {
         // Animate SVG and record each frame to canvas
         // We'll use the same logic as animatePaths, but add canvas drawing at each frame
-        const speed = animationSpeed > 0 ? animationSpeed : 5.0;
-        const duration = 1200 / speed;
+    const duration = animationSpeed > 0 ? animationSpeed : 1200;
         const svgSelector = '#' + (svg.id || svg.getAttribute('id') || 'svg-canvas');
         const elements = (function getAnimatableElements(node) {
             const elements = [];
@@ -282,17 +281,17 @@ window.canvasAnimationInterop = {
 
         let idx = 0;
         let speedMultiplier = 1.0;
-        function drawFrame() {
-            // Draw current SVG state to canvas with white background
+        async function drawFrame() {
+            // Wait for browser to flush SVG updates before drawing
+            await new Promise(r => requestAnimationFrame(r));
             const img = new Image();
             const svgData = new XMLSerializer().serializeToString(svg);
             img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
-            img.onload = function() {
-                ctx.clearRect(0, 0, width, height);
-                ctx.fillStyle = '#fff';
-                ctx.fillRect(0, 0, width, height);
-                ctx.drawImage(img, 0, 0, width, height);
-            };
+            await new Promise(resolve => { img.onload = resolve; });
+            ctx.clearRect(0, 0, width, height);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
         }
 
         async function animateAndRecordNext() {
@@ -314,7 +313,7 @@ window.canvasAnimationInterop = {
             }
             const el = elements[idx];
             if (el.type === 'pause') {
-                drawFrame();
+                await drawFrame();
                 await new Promise(r => setTimeout(r, el.ms));
                 idx++;
                 await animateAndRecordNext();
@@ -351,24 +350,25 @@ window.canvasAnimationInterop = {
                         const elapsed = ts - start;
                         const progress = Math.min(elapsed / animationSpeed, 1);
                         el.style.strokeDashoffset = pathLength * (1 - progress);
-                        drawFrame();
-                        // Match frame rate to requested fps
-                        if (progress < 1) {
-                            setTimeout(() => requestAnimationFrame(step), 1000 / fps);
-                        } else {
-                            el.style.strokeDashoffset = 0;
-                            el.style.strokeDasharray = '';
-                            el.style.transition = '';
-                            idx++;
-                            resolve();
-                        }
+                        // Wait for SVG update before drawing
+                        drawFrame().then(() => {
+                            if (progress < 1) {
+                                setTimeout(() => requestAnimationFrame(step), 1000 / fps);
+                            } else {
+                                el.style.strokeDashoffset = 0;
+                                el.style.strokeDasharray = '';
+                                el.style.transition = '';
+                                idx++;
+                                resolve();
+                            }
+                        });
                     }
                     requestAnimationFrame(step);
                 });
                 await animateAndRecordNext();
             } else if (el.dataset && el.dataset.elementType === 'circle') {
                 el.style.display = '';
-                drawFrame();
+                await drawFrame();
                 idx++;
                 await new Promise(r => setTimeout(r, Math.round(animationSpeed * speedMultiplier)));
                 await animateAndRecordNext();

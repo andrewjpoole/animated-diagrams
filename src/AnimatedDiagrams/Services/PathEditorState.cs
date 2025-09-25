@@ -228,10 +228,19 @@ public class PathEditorState
     
     public void SimplifySelectedItems()
     {
-        foreach (var item in Items.OfType<SvgPathItem>())
+        foreach (var item in SelectedItems.OfType<SvgPathItem>())
         {
             var points = PathData.ToPoints(item.D);
-            item.D = SmoothingStrategies.SimplifyWithBeziers(points);
+            var simplified = SmoothingStrategies.SimplifyWithBeziers(points);
+            // Only update if result is valid (starts with M, has at least one segment, not empty)
+            if (!string.IsNullOrWhiteSpace(simplified) && simplified.StartsWith("M ") && simplified.Length > 10)
+            {
+                item.D = simplified;
+            }
+            else
+            {
+                Console.WriteLine("SimplifyWithBeziers produced an invalid path string");
+            }
         }
         Changed?.Invoke();
     }

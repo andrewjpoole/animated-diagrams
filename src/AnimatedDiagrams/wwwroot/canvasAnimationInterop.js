@@ -1,3 +1,19 @@
+// Ensure canvasAnimationInterop exists before adding helpers
+window.canvasAnimationInterop = window.canvasAnimationInterop || {};
+
+// Helper for Blazor: get mouse position in SVG coordinates
+window.canvasAnimationInterop.getMouseSvgPosition = function(svg) {
+    const pt = svg.createSVGPoint();
+    const evt = window._lastMouseEvent;
+    if (!evt) return { x: 40, y: 40 };
+    pt.x = evt.clientX;
+    pt.y = evt.clientY;
+    const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+    return { x: svgP.x, y: svgP.y };
+};
+window.addEventListener('mousemove', function(e) {
+    window._lastMouseEvent = e;
+});
    
 // canvasAnimationInterop.js
 // Animate SVG paths by stroking along their length using stroke-dasharray and stroke-dashoffset

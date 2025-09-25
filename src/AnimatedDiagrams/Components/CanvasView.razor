@@ -10,10 +10,14 @@
     @onpointerup="PointerUp" @onpointerup:preventDefault
     style="background:@CanvasBgColor">
     <div class="canvas-toolbar">
-    <button class="app-btn" @onclick="OnToggleModeClick" @onpointerdown:stopPropagation @onpointerup:stopPropagation @onmousedown:stopPropagation>Mode: @(Editor.Mode == EditorMode.Drawing ? "Draw" : Editor.Mode == EditorMode.Select ? "Select" : "Animation")</button>
+    <button class="app-btn" 
+        @onclick="OnToggleModeClick" @onpointerdown:stopPropagation @onpointerup:stopPropagation @onmousedown:stopPropagation
+        title="Toggle between modes: drawing (keyboard shortcut: D) and select (keyboard shortcut: S)"
+        >Mode: @(Editor.Mode == EditorMode.Drawing ? "Draw" : Editor.Mode == EditorMode.Select ? "Select" : "Animation")</button>
     <button class="app-btn" @onclick="Undo" @onpointerdown:stopPropagation @onpointerup:stopPropagation @onmousedown:stopPropagation disabled="!UndoRedo.CanUndo">Undo</button>
     <button class="app-btn" @onclick="Redo" @onpointerdown:stopPropagation @onpointerup:stopPropagation @onmousedown:stopPropagation disabled="!UndoRedo.CanRedo">Redo</button>
     <button class="app-btn" @onclick="DeleteSelectedPaths" @onpointerdown:stopPropagation @onpointerup:stopPropagation @onmousedown:stopPropagation disabled="@(Editor.SelectedItems.Count == 0)" title="Delete selected paths">Delete</button>
+    <button class="app-btn" @onclick="DuplicateSelectedPaths" @onpointerdown:stopPropagation @onpointerup:stopPropagation @onmousedown:stopPropagation disabled="@(Editor.SelectedItems.Count == 0)" title="Duplicate selected paths">Duplicate</button>
     
         <span>Zoom: @Editor.Zoom.ToString("0.00")</span>
     @if (Editor.Mode == EditorMode.Drawing && PensService.ActivePen != null)
@@ -141,6 +145,7 @@
 
 
 @code {
+
     // Store original positions for circles during drag
     private Dictionary<SvgCircleItem, (double cx, double cy)>? _dragMoveOriginalCircles;
     private ElementReference _svg;
@@ -795,6 +800,128 @@
             _lastSvgRect = (rect.x, rect.y, rect.width, rect.height);
         }
         catch { }
+    }
+
+    private async void DuplicateSelectedPaths()
+    {
+        if (Editor.SelectedItems.Count == 0)
+            return;
+
+        var mousePos = await GetMouseSvgPositionAsync();
+
+        // Find indices of selected items
+        var selectedIndices = Editor.SelectedItems.Select(item => Editor.Items.IndexOf(item)).Where(i => i >= 0).OrderBy(i => i).ToList();
+        int insertIndex = selectedIndices.Count > 0 ? selectedIndices.Last() + 1 : Editor.Items.Count;
+
+        var newItems = new List<PathItem>();
+        foreach (var item in Editor.SelectedItems)
+        {
+            PathItem? copy = null;
+            if (item is SvgPathItem path)
+            {
+                copy = new SvgPathItem
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    D = OffsetPathD(path.D, mousePos),
+                    Stroke = path.Stroke,
+                    StrokeWidth = path.StrokeWidth,
+                    Opacity = path.Opacity,
+                    LineType = path.LineType,
+                    StrokeLineCap = path.StrokeLineCap
+                };
+            }
+            else if (item is SvgCircleItem circle)
+            {
+                copy = new SvgCircleItem
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Cx = circle.Cx + mousePos.x,
+                    Cy = circle.Cy + mousePos.y,
+                    R = circle.R,
+                    Fill = circle.Fill,
+                    Opacity = circle.Opacity
+                };
+            }
+            if (copy != null)
+                newItems.Add(copy);
+        }
+
+        // Insert new items just below originals
+        if (newItems.Count > 0)
+        {
+            Editor.Items.InsertRange(insertIndex, newItems);
+            Editor.SelectMultiple(newItems);
+            StateHasChanged();
+        }
+    }
+
+    private async Task<(double x, double y)> GetMouseSvgPositionAsync()
+    {
+        try
+        {
+            var pos = await JS.InvokeAsync<dynamic>("canvasInterop.getMouseSvgPosition", _svg);
+            return ((double)pos.x, (double)pos.y);
+        }
+        catch
+        {
+            return (40, 40);
+        }
+    }
+
+    private string OffsetPathD(string d, (double x, double y) offset)
+    {
+        var tokens = d.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var sb = new System.Text.StringBuilder();
+        int i = 0;
+        while (i < tokens.Length)
+        {
+            var cmd = tokens[i];
+            if (cmd == "M" || cmd == "L")
+            {
+                if (i + 2 < tokens.Length &&
+                    double.TryParse(tokens[i + 1], out var x) &&
+                    double.TryParse(tokens[i + 2], out var y))
+                {
+                    sb.Append($"{cmd} {x + offset.x} {y + offset.y} ");
+                    i += 3;
+                }
+                else i++;
+            }
+            else if (cmd == "Q")
+            {
+                if (i + 4 < tokens.Length &&
+                    double.TryParse(tokens[i + 1], out var cx) &&
+                    double.TryParse(tokens[i + 2], out var cy) &&
+                    double.TryParse(tokens[i + 3], out var x) &&
+                    double.TryParse(tokens[i + 4], out var y))
+                {
+                    sb.Append($"{cmd} {cx + offset.x} {cy + offset.y} {x + offset.x} {y + offset.y} ");
+                    i += 5;
+                }
+                else i++;
+            }
+            else if (cmd == "C")
+            {
+                if (i + 6 < tokens.Length &&
+                    double.TryParse(tokens[i + 1], out var cx1) &&
+                    double.TryParse(tokens[i + 2], out var cy1) &&
+                    double.TryParse(tokens[i + 3], out var cx2) &&
+                    double.TryParse(tokens[i + 4], out var cy2) &&
+                    double.TryParse(tokens[i + 5], out var x) &&
+                    double.TryParse(tokens[i + 6], out var y))
+                {
+                    sb.Append($"{cmd} {cx1 + offset.x} {cy1 + offset.y} {cx2 + offset.x} {cy2 + offset.y} {x + offset.x} {y + offset.y} ");
+                    i += 7;
+                }
+                else i++;
+            }
+            else
+            {
+                sb.Append(cmd + " ");
+                i++;
+            }
+        }
+        return sb.ToString().Trim();
     }
 
     protected override void OnInitialized()

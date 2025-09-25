@@ -3,85 +3,31 @@ using System.Collections.Generic;
 namespace AnimatedDiagrams.Models
 {
     public enum SmoothingType
-    {
-        QuadraticBezier,
+    {        
         Linear,
         CatmullRom,
-        SimplifiedBezier
+        SimplifiedBezier,
+        LinearReduced
     }
 
     public static class SmoothingStrategies
     {
         /// <summary>
-        /// Computes an adaptive smoothing step based on the average change of direction (angle) between segments.
-        /// Curvy lines use a low step (2-4), only very straight lines get a high step (up to maxStep).
-        /// </summary>
-        public static int ComputeAdaptiveStep(List<(double x, double y)> pts, int baseStep = 2, int maxStep = 20)
-        {
-            if (pts.Count < 3) return baseStep;
-            double totalAngle = 0;
-            for (int i = 1; i < pts.Count - 1; i++)
-            {
-                var a = pts[i - 1];
-                var b = pts[i];
-                var c = pts[i + 1];
-                var v1x = b.x - a.x; var v1y = b.y - a.y;
-                var v2x = c.x - b.x; var v2y = c.y - b.y;
-                double dot = v1x * v2x + v1y * v2y;
-                double mag1 = Math.Sqrt(v1x * v1x + v1y * v1y);
-                double mag2 = Math.Sqrt(v2x * v2x + v2y * v2y);
-                if (mag1 > 0 && mag2 > 0)
-                {
-                    double angle = Math.Acos(Math.Clamp(dot / (mag1 * mag2), -1.0, 1.0));
-                    totalAngle += angle;
-                }
-            }
-            double avgAngle = totalAngle / (pts.Count - 2);
-            // If avgAngle is small, path is straight; if large, path is curvy
-            // Use a threshold: below 0.1 rad (very straight), use maxStep; above 0.3 rad (curvy), use baseStep
-            if (avgAngle < 0.1) return maxStep;
-            if (avgAngle < 0.2) return Math.Max(baseStep, maxStep / 2);
-            return baseStep; // curvy lines
-        }
-
-        /// <summary>
         /// Builds an SVG path string using the selected smoothing strategy and adaptive step size.
         /// </summary>
         public static string BuildPath(List<(double x, double y)> pts, SmoothingType type, int baseStep = 2, int maxStep = 20)
-        {
-            int step = ComputeAdaptiveStep(pts, baseStep, maxStep);
+        {            
             return type switch
-            {
-                SmoothingType.QuadraticBezier => QuadraticBezier(pts, step),
-                SmoothingType.Linear => Linear(pts),
+            {                
                 SmoothingType.CatmullRom => CatmullRom(pts),
                 SmoothingType.SimplifiedBezier => SimplifyWithBeziers(pts),
-                _ => QuadraticBezier(pts, step)
+                SmoothingType.LinearReduced => LinearReduced(pts, 10.0),
+                _ => Linear(pts)
             };
         }
 
         /// <summary>
-        /// Quadratic Bézier smoothing: uses quadratic curves between points, skipping by step size.
-        /// </summary>
-        public static string QuadraticBezier(List<(double x, double y)> pts, int step = 2)
-        {
-            if (pts.Count < 3) return $"M {pts[0].x:0.##} {pts[0].y:0.##} L {pts[^1].x:0.##} {pts[^1].y:0.##}";
-            var sb = new System.Text.StringBuilder();
-            sb.Append($"M {pts[0].x:0.##} {pts[0].y:0.##}");
-            for (int i = step; i < pts.Count - step; i += step)
-            {
-                var p0 = pts[i - step];
-                var p1 = pts[i];
-                var p2 = pts[Math.Min(i + step, pts.Count - 1)];
-                var cx = (p0.x + p2.x) / 2; var cy = (p0.y + p2.y) / 2;
-                sb.Append($" Q {p1.x:0.##} {p1.y:0.##} {cx:0.##} {cy:0.##}");
-            }
-            sb.Append($" L {pts[^1].x:0.##} {pts[^1].y:0.##}");
-            return sb.ToString();
-        }
-
-        /// <summary>
-        /// Linear smoothing: connects all points with straight lines (no smoothing).
+        /// Linear: no smoothing, connects all points with straight lines.
         /// </summary>
         public static string Linear(List<(double x, double y)> pts)
         {
@@ -94,7 +40,7 @@ namespace AnimatedDiagrams.Models
         }
 
         /// <summary>
-        /// Catmull-Rom smoothing: uses Catmull-Rom splines for smooth curves (step size not used).
+        /// Catmull-Rom smoothing: uses Catmull-Rom splines for smooth curves
         /// </summary>
         public static string CatmullRom(List<(double x, double y)> pts)
         {
@@ -119,7 +65,6 @@ namespace AnimatedDiagrams.Models
 
         /// <summary>
         /// Simplifies a path using Ramer-Douglas-Peucker and fits quadratic Bezier segments.
-        /// Returns an SVG path string.
         /// </summary>
         public static string SimplifyWithBeziers(List<(double x, double y)> pts, double tolerance = 2.0)
         {
@@ -135,6 +80,36 @@ namespace AnimatedDiagrams.Models
                 sb.Append($"Q {p1.x} {p1.y} {p2.x} {p2.y} ");
             }
             return sb.ToString().Trim();
+        }
+
+
+        /// <summary>
+        /// Linear smoothing with node reduction: removes nodes that are closer than minDistance to the previous node.
+        /// Especially useful for cleaning up dense endpoints from slow pointer movement.
+        /// </summary>
+        public static string LinearReduced(List<(double x, double y)> pts, double minDistance = 4.0)
+        {
+            if (pts.Count < 2) return "";
+            var reduced = new List<(double x, double y)>();
+            reduced.Add(pts[0]);
+            for (int i = 1; i < pts.Count; i++)
+            {
+                var prev = reduced[^1];
+                var curr = pts[i];
+                double dx = curr.x - prev.x;
+                double dy = curr.y - prev.y;
+                double dist = Math.Sqrt(dx * dx + dy * dy);
+                if (dist >= minDistance || i == pts.Count - 1) // Always keep last node
+                {
+                    reduced.Add(curr);
+                }
+            }
+            if (reduced.Count < 2) return "";
+            var sb = new System.Text.StringBuilder();
+            sb.Append($"M {reduced[0].x:0.##} {reduced[0].y:0.##}");
+            for (int i = 1; i < reduced.Count; i++)
+                sb.Append($" L {reduced[i].x:0.##} {reduced[i].y:0.##}");
+            return sb.ToString();
         }
 
         // Ramer-Douglas-Peucker algorithm for path simplification

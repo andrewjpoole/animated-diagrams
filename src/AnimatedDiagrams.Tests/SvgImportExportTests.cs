@@ -5,6 +5,7 @@ using System.Xml.Linq;
 using AnimatedDiagrams.Models;
 using AnimatedDiagrams.Services;
 using Xunit;
+using static AnimatedDiagrams.Tests.ThemeTests;
 
 namespace AnimatedDiagrams.Tests
 {
@@ -21,7 +22,8 @@ namespace AnimatedDiagrams.Tests
             var originalXml = File.ReadAllText(svgPath);
 
             var pensService = new PensService();
-            var editor = new PathEditorState(pensService);
+            var settingsService = new SettingsService(new DummyStorage());
+            var editor = new PathEditorState(pensService, settingsService);
             var service = new SvgFileService(editor);
             service.ImportSvg(originalXml);
 

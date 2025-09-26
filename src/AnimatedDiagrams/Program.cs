@@ -9,7 +9,10 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 
 builder.Services.AddSingleton<PathEditorState>();
 builder.Services.AddSingleton<PensService>();
-builder.Services.AddSingleton<PathEditorState>(sp => new PathEditorState(sp.GetRequiredService<PensService>()));
+builder.Services.AddSingleton<PathEditorState>(
+    sp => new PathEditorState(
+        sp.GetRequiredService<PensService>(),
+        sp.GetRequiredService<SettingsService>()));
 builder.Services.AddSingleton<StyleRuleService>();
 builder.Services.AddSingleton<SettingsService>();
 builder.Services.AddSingleton<UndoRedoService>();

@@ -2,7 +2,6 @@ namespace AnimatedDiagrams.Services;
 
 using System;
 using System.Collections.Generic;
-using System.Text.Json;
 using AnimatedDiagrams.Models;
 
 public enum EditorMode
@@ -16,10 +15,12 @@ public class PathEditorState
 {
     public string DiagramName { get; set; } = "animated-diagram";
     public PensService PensSvc { get; }
+    private SettingsService settingsService;
 
-    public PathEditorState(PensService pensSvc)
+    public PathEditorState(PensService pensSvc, SettingsService settingsService)
     {
         PensSvc = pensSvc;
+        this.settingsService = settingsService;
     }
 
     public void ResetViewport()
@@ -231,7 +232,9 @@ public class PathEditorState
         foreach (var item in SelectedItems.OfType<SvgPathItem>())
         {
             var points = PathData.ToPoints(item.D);
-            var simplified = SmoothingStrategies.SimplifyWithBeziers(points);
+            // Use the smoothing strategy from system settings
+            var strategy = settingsService.Settings.SmoothingStrategy;
+            var simplified = SmoothingStrategies.BuildPath(points, strategy);
             // Only update if result is valid (starts with M, has at least one segment, not empty)
             if (!string.IsNullOrWhiteSpace(simplified) && simplified.StartsWith("M ") && simplified.Length > 10)
             {
@@ -239,7 +242,7 @@ public class PathEditorState
             }
             else
             {
-                Console.WriteLine("SimplifyWithBeziers produced an invalid path string");
+                Console.WriteLine($"{strategy} produced an invalid path string");
             }
         }
         Changed?.Invoke();

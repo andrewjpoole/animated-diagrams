@@ -3,6 +3,7 @@ using System.IO;
 using AnimatedDiagrams.Models;
 using AnimatedDiagrams.Services;
 using Xunit;
+using static AnimatedDiagrams.Tests.ThemeTests;
 
 namespace AnimatedDiagrams.Tests;
 
@@ -13,7 +14,8 @@ public class SidebarStateManualTests
     {
         // Arrange
         var pensService = new PensService();
-        var editor = new PathEditorState(pensService);
+        var settingsService = new SettingsService(new DummyStorage());
+        var editor = new PathEditorState(pensService, settingsService);
         var service = new SvgFileService(editor);
         var projectDir = AppContext.BaseDirectory;
         while (!Directory.Exists(Path.Combine(projectDir, "testData")))

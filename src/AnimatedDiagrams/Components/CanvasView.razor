@@ -683,7 +683,7 @@
             {
                 step = maxStep;
             }
-            _activePath.D = SmoothingStrategies.BuildPath(_points, SettingsSvc.Settings.SmoothingStrategy, step, step);            
+            _activePath.D = SmoothingStrategies.BuildPath(_points, SettingsSvc.Settings.SmoothingStrategy, step);            
             Editor.Add(_activePath);
             UndoRedo.PushState(StateSnapshot());
             _activePath = null;

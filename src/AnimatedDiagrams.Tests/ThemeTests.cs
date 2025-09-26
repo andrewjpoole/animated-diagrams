@@ -6,7 +6,7 @@ namespace AnimatedDiagrams.Tests;
 
 public class ThemeTests
 {
-    class DummyStorage : ILocalStorage
+    public class DummyStorage : ILocalStorage
     {
         public string? Item;
         public string? GetItem(string key) => Item;

@@ -1,4 +1,5 @@
 @using AnimatedDiagrams.Models
+@using AnimatedDiagrams.PathGeometry
 @using AnimatedDiagrams.Services
 @inject PathEditorState Editor
 @inject SettingsService SettingsSvc
@@ -10,6 +11,7 @@
     @onpointerup="PointerUp" @onpointerup:preventDefault
     style="background:@CanvasBgColor">
     <div class="canvas-toolbar">
+    
     <button class="app-btn" 
         @onclick="OnToggleModeClick" @onpointerdown:stopPropagation @onpointerup:stopPropagation @onmousedown:stopPropagation
         title="Toggle between modes: drawing (keyboard shortcut: D) and select (keyboard shortcut: S)"
@@ -38,6 +40,9 @@
     <svg @ref="_svg" class="diagram-canvas" width="100%" height="100%" viewBox="0 0 2000 1200"
     style="cursor:@(Editor.Mode == EditorMode.Drawing ? "crosshair" : "default")">
         <g transform="matrix(@Editor.Zoom 0 0 @Editor.Zoom @Editor.OffsetX @Editor.OffsetY)">
+        }
+        @* Render random rectangle for debug (must be direct child of <svg>) *@
+        
             @foreach (var item in Editor.Items)
             {
                 switch (item)
@@ -62,7 +67,7 @@
                             stroke-linecap="@p.StrokeLineCap"
                             stroke-dasharray="@(p.LineType == "dashed" ? "10 6" : p.LineType == "dotted" ? "3 7" : null)"
                             data-element-type="path"
-                            data-path-length="@GetPathLength(p.D)" />
+                            data-path-length="@Path.EstimatedLength(p.D)" />
                         break;
                     case SvgCircleItem c:
                         if (c.Selected)
@@ -72,7 +77,7 @@
                         <circle id="@c.Id" cx="@c.Cx" cy="@c.Cy" r="@c.R" fill="@c.Fill" opacity="@c.Opacity" data-element-type="circle" />
                         break;
                 }
-            }
+            }        
             @if (Editor.EditingSelectedPaths)
             {
                 @foreach (var node in SelectedPathNodesWithType)
@@ -90,7 +95,7 @@
                 @foreach (var path in Editor.SelectedItems.OfType<SvgPathItem>())
                 {
                     // Draw connecting lines and handles for control nodes of selected paths
-                    var nodes = GetPathNodesWithType(path);
+                    var nodes = Path.GetPathNodesWithType(path);
                     for (int i = 0; i < nodes.Count; i++)
                     {
                         var (node, isControl) = nodes[i];
@@ -136,17 +141,18 @@
     {
         <div class="debug-overlay">
             <strong>Debug</strong><br />
+            <button class="app-btn" @onclick="DebugAction">Grid</button>
+            <br />
             Rect: @_lastSvgRect.x,@_lastSvgRect.y / @_lastSvgRect.w x @_lastSvgRect.h<br />
             Zoom: @Editor.Zoom.ToString("0.00") Off: @Editor.OffsetX.ToString("0.##"),@Editor.OffsetY.ToString("0.##")<br />
             ActivePts: @_points.Count @(_activePath == null ? "(idle)" : "(drawing)")<br />
         </div>
-    }
+    }    
 </div>
 
 
-@code {
 
-    // Store original positions for circles during drag
+@code {
     private Dictionary<SvgCircleItem, (double cx, double cy)>? _dragMoveOriginalCircles;
     private ElementReference _svg;
     private ElementReference _canvasWrapper;
@@ -166,99 +172,6 @@
     private Dictionary<SvgPathItem, List<(double x, double y)>>? _dragMoveOriginalPoints;
     private bool _pendingCircle = false;
     
-    // Hit test: only select if click is close to a path segment, not inside area
-    bool IsPointNearPath(double x, double y, SvgPathItem path)
-    {
-        var tokens = path.D.Replace("M", " ").Replace("Q", " ").Replace("L", " ").Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        const double threshold = 5;
-        if (tokens.Length < 4) return false;
-        for (int i = 0; i + 3 < tokens.Length; i += 2)
-        {
-            if (double.TryParse(tokens[i], out var x1) && double.TryParse(tokens[i + 1], out var y1) &&
-                double.TryParse(tokens[i + 2], out var x2) && double.TryParse(tokens[i + 3], out var y2))
-            {
-                var dist = DistanceToSegment(x, y, x1, y1, x2, y2);
-                if (dist < threshold) return true;
-            }
-        }
-        return false;
-    }
-
-    // Estimate SVG path length for animation (fallback for JS getTotalLength)
-    double GetPathLength(string d)
-    {
-        // Simple estimation: sum of segment lengths for M/L commands
-        var tokens = d.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        double length = 0;
-        double? lastX = null, lastY = null;
-        int i = 0;
-        while (i < tokens.Length)
-        {
-            var cmd = tokens[i];
-            if (cmd == "M" || cmd == "L")
-            {
-                if (i + 2 < tokens.Length && double.TryParse(tokens[i + 1], out var x) && double.TryParse(tokens[i + 2], out var y))
-                {
-                    if (lastX.HasValue && lastY.HasValue)
-                    {
-                        var dx = x - lastX.Value;
-                        var dy = y - lastY.Value;
-                        length += Math.Sqrt(dx * dx + dy * dy);
-                    }
-                    lastX = x; lastY = y;
-                    i += 3;
-                }
-                else i++;
-            }
-            else if (cmd == "Q")
-            {
-                // Quadratic: estimate as straight line for fallback
-                if (i + 4 < tokens.Length && double.TryParse(tokens[i + 3], out var x) && double.TryParse(tokens[i + 4], out var y))
-                {
-                    if (lastX.HasValue && lastY.HasValue)
-                    {
-                        var dx = x - lastX.Value;
-                        var dy = y - lastY.Value;
-                        length += Math.Sqrt(dx * dx + dy * dy);
-                    }
-                    lastX = x; lastY = y;
-                    i += 5;
-                }
-                else i++;
-            }
-            else if (cmd == "C")
-            {
-                // Cubic: estimate as straight line for fallback
-                if (i + 6 < tokens.Length && double.TryParse(tokens[i + 5], out var x) && double.TryParse(tokens[i + 6], out var y))
-                {
-                    if (lastX.HasValue && lastY.HasValue)
-                    {
-                        var dx = x - lastX.Value;
-                        var dy = y - lastY.Value;
-                        length += Math.Sqrt(dx * dx + dy * dy);
-                    }
-                    lastX = x; lastY = y;
-                    i += 7;
-                }
-                else i++;
-            }
-            else i++;
-        }
-        return length;
-    }
-
-    // Helper: distance from point to segment
-    double DistanceToSegment(double px, double py, double x1, double y1, double x2, double y2)
-    {
-        var dx = x2 - x1; var dy = y2 - y1;
-        if (dx == 0 && dy == 0) return Math.Sqrt((px - x1) * (px - x1) + (py - y1) * (py - y1));
-        var t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy);
-        t = Math.Max(0, Math.Min(1, t));
-        var projX = x1 + t * dx;
-        var projY = y1 + t * dy;
-        return Math.Sqrt((px - projX) * (px - projX) + (py - projY) * (py - projY));
-    }
-
     private IEnumerable<(Node node, bool isControl)> SelectedPathNodesWithType
     {
         get
@@ -266,59 +179,11 @@
             var result = new List<(Node, bool)>();
             foreach (var p in Editor.SelectedItems.OfType<SvgPathItem>())
             {
-                result.AddRange(GetPathNodesWithType(p));
+                result.AddRange(Path.GetPathNodesWithType(p));
             }
             return result;
         }
     }
-
-    private List<(Node node, bool isControl)> GetPathNodesWithType(SvgPathItem path)
-    {
-        var result = new List<(Node, bool)>();
-        var tokens = path.D.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        int i = 0;
-        while (i < tokens.Length)
-        {
-            var cmd = tokens[i];
-            if (cmd == "M" || cmd == "L")
-            {
-                if (i + 2 < tokens.Length && double.TryParse(tokens[i + 1], out var x) && double.TryParse(tokens[i + 2], out var y))
-                {
-                    result.Add((new Node { X = x, Y = y }, false));
-                    i += 3;
-                }
-                else i++;
-            }
-            else if (cmd == "Q")
-            {
-                // Q x1 y1 x y (x1,y1 is control, x,y is endpoint)
-                if (i + 4 < tokens.Length && double.TryParse(tokens[i + 1], out var cx) && double.TryParse(tokens[i + 2], out var cy)
-                    && double.TryParse(tokens[i + 3], out var x) && double.TryParse(tokens[i + 4], out var y))
-                {
-                    result.Add((new Node { X = cx, Y = cy }, true)); // control point
-                    result.Add((new Node { X = x, Y = y }, false));   // endpoint
-                    i += 5;
-                }
-                else i++;
-            }
-            else if (cmd == "C")
-            {
-                // C x1 y1 x2 y2 x y (cubic: two controls, one endpoint)
-                if (i + 6 < tokens.Length && double.TryParse(tokens[i + 1], out var cx1) && double.TryParse(tokens[i + 2], out var cy1)
-                    && double.TryParse(tokens[i + 3], out var cx2) && double.TryParse(tokens[i + 4], out var cy2)
-                    && double.TryParse(tokens[i + 5], out var x) && double.TryParse(tokens[i + 6], out var y))
-                {
-                    result.Add((new Node { X = cx1, Y = cy1 }, true));
-                    result.Add((new Node { X = cx2, Y = cy2 }, true));
-                    result.Add((new Node { X = x, Y = y }, false));
-                    i += 7;
-                }
-                else i++;
-            }
-            else i++;
-        }
-        return result;
-    }    
 
     void OnToggleModeClick(MouseEventArgs e)
     {
@@ -403,8 +268,8 @@
         if (e.AltKey && e.Button == 0)
         {
             var svgHitPoint = ToSvgFromEvent(e);
-            var hitPath = Editor.Items.OfType<SvgPathItem>().FirstOrDefault(p => IsPointNearPath(svgHitPoint.x, svgHitPoint.y, p));
-            var hitCircle = Editor.Items.OfType<SvgCircleItem>().FirstOrDefault(c => IsPointInCircle(svgHitPoint.x, svgHitPoint.y, c));
+            var hitPath = Editor.Items.OfType<SvgPathItem>().FirstOrDefault(p => Path.IsNearPoint(svgHitPoint.x, svgHitPoint.y, p));
+            var hitCircle = Editor.Items.OfType<SvgCircleItem>().FirstOrDefault(c => Path.IsPointInCircle(svgHitPoint.x, svgHitPoint.y, c));
             if (hitPath != null) Editor.Delete(hitPath);
             if (hitCircle != null) Editor.Delete(hitCircle);
             StateHasChanged();
@@ -418,7 +283,7 @@
             _offsetStart = (Editor.OffsetX, Editor.OffsetY); 
             return;
         }
-        // Mouse middle-click starts panning, but not for pen
+        // Mouse middle-click starts panning
         if (e.PointerType == "mouse" && e.Button == 1)
         {
             _panning = true; 
@@ -427,19 +292,25 @@
             return;
         }
         // Left-click drag for selection rectangle in select mode
-    if (e.Button == 0 && Editor.Mode != EditorMode.Drawing)
+        if (e.Button == 0 && Editor.Mode != EditorMode.Drawing)
         {
             var svgHitPoint = ToSvgFromEvent(e);
-            // Single-click select logic
-            // Hit test for paths
-            var hitPath = Editor.Items.OfType<SvgPathItem>().FirstOrDefault(p => IsPointNearPath(svgHitPoint.x, svgHitPoint.y, p));
-            // Hit test for circles
-            var hitCircle = Editor.Items.OfType<SvgCircleItem>().FirstOrDefault(c => IsPointInCircle(svgHitPoint.x, svgHitPoint.y, c));
+            // Use ItemLocationCache for fast hit test
+            var hitIds = Editor.LocationCache?.GetItemsAt(svgHitPoint.x, svgHitPoint.y) ?? Array.Empty<string>();
+            var hitItems = Editor.Items.Where(i => hitIds.Contains(i.Id)).ToList();
+            // Filter for actual hit (path/circle)
             PathItem? hit = null;
-            if (hitPath != null)
-                hit = hitPath;
-            else if (hitCircle != null)
-                hit = hitCircle;
+            foreach (var item in hitItems)
+            {
+                if (item is SvgPathItem p && Path.IsNearPoint(svgHitPoint.x, svgHitPoint.y, p))
+                {
+                    hit = p; break;
+                }
+                if (item is SvgCircleItem c && Path.IsPointInCircle(svgHitPoint.x, svgHitPoint.y, c))
+                {
+                    hit = c; break;
+                }
+            }
             if (hit != null)
             {
                 bool skipSelection = false;
@@ -475,7 +346,7 @@
                     _dragMoveOriginalPoints = new Dictionary<SvgPathItem, List<(double x, double y)>>();
                     foreach (var path in Editor.SelectedItems.OfType<SvgPathItem>())
                     {
-                        var pts = GetPathPoints(path);
+                        var pts = Path.GetPoints(path);
                         _dragMoveOriginalPoints[path] = pts;
                     }
                     // Store original positions for circles
@@ -487,7 +358,7 @@
                 }
                 return;
             }
-    
+
             // Otherwise, start drag-select
             _dragSelecting = true;
             _dragStart = svgHitPoint;
@@ -499,7 +370,7 @@
         }
 
         // In draw mode, allow mouse left-click or pen tip contact
-    if (Editor.Mode != EditorMode.Drawing || 
+        if (Editor.Mode != EditorMode.Drawing || 
             (e.PointerType == "mouse" && e.Button != 0) ||
             (e.PointerType == "pen" && e.Pressure == 0))
             return;
@@ -533,7 +404,7 @@
     {
         //Console.WriteLine($"PointerMove: type={e.PointerType} button={e.Button} pressure={e.Pressure}");
         
-        // Ignore pen hover (pressure==0), only draw/move on contact
+        // Ignore pen hover 
         if (e.Pressure == 0)
             return;
 
@@ -544,8 +415,8 @@
         if (e.AltKey && e.Button == 0)
         {
             var svgHitPoint = ToSvgFromEvent(e);
-            var hitPath = Editor.Items.OfType<SvgPathItem>().FirstOrDefault(p => IsPointNearPath(svgHitPoint.x, svgHitPoint.y, p));
-            var hitCircle = Editor.Items.OfType<SvgCircleItem>().FirstOrDefault(c => IsPointInCircle(svgHitPoint.x, svgHitPoint.y, c));
+            var hitPath = Editor.Items.OfType<SvgPathItem>().FirstOrDefault(p => Path.IsNearPoint(svgHitPoint.x, svgHitPoint.y, p));
+            var hitCircle = Editor.Items.OfType<SvgCircleItem>().FirstOrDefault(c => Path.IsPointInCircle(svgHitPoint.x, svgHitPoint.y, c));
             if (hitPath != null) Editor.Delete(hitPath);
             if (hitCircle != null) Editor.Delete(hitCircle);
             StateHasChanged();
@@ -566,12 +437,15 @@
             var (x0, y0) = _dragStart.Value;
             var (x1, y1) = svgHitPoint;
             var minX = Math.Min(x0, x1);
-            var maxX = Math.Max(x0, x1);
             var minY = Math.Min(y0, y1);
-            var maxY = Math.Max(y0, y1);
-            var selectedPaths = Editor.Items.OfType<SvgPathItem>().Where(p => PathIntersectsRect(p, minX, minY, maxX, maxY)).ToList();
-            var selectedCircles = Editor.Items.OfType<SvgCircleItem>().Where(c => CircleIntersectsRect(c, minX, minY, maxX, maxY)).ToList();
-            var selected = selectedPaths.Cast<PathItem>().Concat(selectedCircles).ToList();
+            var width = Math.Abs(x1 - x0);
+            var height = Math.Abs(y1 - y0);
+            // Use ItemLocationCache for fast bucket-based selection, then filter by actual intersection
+            var candidateIds = Editor.LocationCache?.GetItemsInRect(minX, minY, width, height) ?? Array.Empty<string>();
+            var selected = Editor.Items.Where(i => candidateIds.Contains(i.Id) &&
+                ((i is SvgPathItem p && Path.IntersectsRect(p, minX, minY, minX + width, minY + height)) ||
+                 (i is SvgCircleItem c && Path.CircleIntersectsRect(c, minX, minY, minX + width, minY + height)))).ToList();
+
             if (e.CtrlKey)
             {
                 // Add to current selection
@@ -587,41 +461,41 @@
             foreach (var item in Editor.SelectedItems) item.Highlight = true;
             StateHasChanged();
             return;
-    
+        }
+        
+        if (_dragMovingPaths && _dragMoveStart.HasValue && _dragMoveOriginalPoints != null)
+        {
+            var svgHitPoint = ToSvgFromEvent(e);
+            var (startX, startY) = _dragMoveStart.Value;
+            var dx = svgHitPoint.x - startX;
+            var dy = svgHitPoint.y - startY;
+            foreach (var kvp in _dragMoveOriginalPoints)
+            {
+                var path = kvp.Key;
+                var origPts = kvp.Value;
+                var movedPts = origPts.Select(pt => (pt.x + dx, pt.y + dy)).ToList();
+                path.D = SmoothingStrategies.Linear(movedPts);
+            }
+            
+            if (_dragMoveOriginalCircles != null)
+            {
+                foreach (var kvp in _dragMoveOriginalCircles)
+                {
+                    var circle = kvp.Key;
+                    var (origCx, origCy) = kvp.Value;
+                    circle.Cx = origCx + dx;
+                    circle.Cy = origCy + dy;
+                }
+            }
+            StateHasChanged();
+            return;
         }
 
-            // Multi-shape drag-move logic
-            if (_dragMovingPaths && _dragMoveStart.HasValue && _dragMoveOriginalPoints != null)
-            {
-                var svgHitPoint = ToSvgFromEvent(e);
-                var (startX, startY) = _dragMoveStart.Value;
-                var dx = svgHitPoint.x - startX;
-                var dy = svgHitPoint.y - startY;
-                foreach (var kvp in _dragMoveOriginalPoints)
-                {
-                    var path = kvp.Key;
-                    var origPts = kvp.Value;
-                    var movedPts = origPts.Select(pt => (pt.x + dx, pt.y + dy)).ToList();
-                    path.D = SmoothingStrategies.Linear(movedPts);
-                }
-                // Move circles
-                if (_dragMoveOriginalCircles != null)
-                {
-                    foreach (var kvp in _dragMoveOriginalCircles)
-                    {
-                        var circle = kvp.Key;
-                        var (origCx, origCy) = kvp.Value;
-                        circle.Cx = origCx + dx;
-                        circle.Cy = origCy + dy;
-                    }
-                }
-                StateHasChanged();
-                return;
-            }
         if (_activePath == null) return;
         var (sx, sy) = ToSvgFromEvent(e);
         if (_points.Last() == (sx, sy)) return;
         _points.Add((sx, sy));
+
         // Always use linear while drawing for smooth experience
         _activePath.D = SmoothingStrategies.Linear(_points);
     }
@@ -631,15 +505,60 @@
         if(Editor.ModeWhichShoudIgnorePointerEvents)
             return;
 
-        if (_panning) { _panning = false; return; }
+        if (_panning) 
+        { 
+            _panning = false; return; 
+        }
+        
         if (_dragSelecting)
         {
+            // If drag distance is very small, treat as single click
+            double dragDist = 0;
+            if (_dragStart.HasValue && _dragEnd.HasValue)
+            {
+                var (x0, y0) = _dragStart.Value;
+                var (x1, y1) = _dragEnd.Value;
+                dragDist = Math.Sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0));
+            }
+            if (dragDist < 2.0)
+            {
+                // Treat as single click
+                var svgHitPoint = _dragStart ?? (0, 0);
+                var candidateIds = Editor.LocationCache?.GetItemsAt(svgHitPoint.x, svgHitPoint.y) ?? Array.Empty<string>();
+                var items = Editor.Items.Where(i => candidateIds.Contains(i.Id)).ToList();
+                double radius = 10.0;
+                var hitItems = items.Where(i =>
+                    (i is SvgPathItem p && Path.IntersectsCircle(p, svgHitPoint.x, svgHitPoint.y, radius)) ||
+                    (i is SvgCircleItem c && Path.CircleIntersectsCircle(c, svgHitPoint.x, svgHitPoint.y, radius)))
+                    .ToList();
+                var hitTestIds = hitItems.Select(i => i.Id)
+                    .Where(id => id.StartsWith("test-path-"))
+                    .ToList();
+                Editor.SelectMultiple(hitItems);
+    
+            }
+            else
+            {
+                // Log selected testPath ids for diagnosis (now finalized)
+                var selectedTestIds = Editor.SelectedItems.Select(i => i.Id).Where(id => id.StartsWith("test-path-")).ToList();
+                Console.WriteLine($"DragSelect items: {string.Join(", ", selectedTestIds)}");
+            }
             _dragSelecting = false;
             _dragStart = null;
             _dragEnd = null;
             StateHasChanged();
             return;
         }
+        
+        // Log single-click select for testPath items
+        if (!_dragSelecting && !_panning && e.Button == 0)
+        {
+            var svgHitPoint = ToSvgFromEvent(e);
+            var hitIds = Editor.LocationCache?.GetItemsAt(svgHitPoint.x, svgHitPoint.y) ?? Array.Empty<string>();
+            var hitTestIds = hitIds.Where(id => id.StartsWith("test-path-")).ToList();
+            Console.WriteLine($"SingleClick: x={svgHitPoint.x:F1} y={svgHitPoint.y:F1}");
+            Console.WriteLine($"SingleClick items: {string.Join(", ", hitTestIds)}");
+        }        
 
         // End multi-shape drag-move
         if (_dragMovingPaths)
@@ -691,94 +610,6 @@
         _pendingCircle = false;
     }
 
-    // Helper: get all points from a path (for drag-move)
-    List<(double x, double y)> GetPathPoints(SvgPathItem path)
-    {
-        var pts = new List<(double x, double y)>();
-        var tokens = path.D.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        int i = 0;
-        while (i < tokens.Length)
-        {
-            var cmd = tokens[i];
-            if (cmd == "M" || cmd == "L")
-            {
-                if (i + 2 < tokens.Length && double.TryParse(tokens[i + 1], out var x) && double.TryParse(tokens[i + 2], out var y))
-                {
-                    pts.Add((x, y));
-                    i += 3;
-                }
-                else i++;
-            }
-            else if (cmd == "Q")
-            {
-                if (i + 4 < tokens.Length && double.TryParse(tokens[i + 1], out var cx) && double.TryParse(tokens[i + 2], out var cy)
-                    && double.TryParse(tokens[i + 3], out var x) && double.TryParse(tokens[i + 4], out var y))
-                {
-                    pts.Add((cx, cy));
-                    pts.Add((x, y));
-                    i += 5;
-                }
-                else i++;
-            }
-            else if (cmd == "C")
-            {
-                if (i + 6 < tokens.Length && double.TryParse(tokens[i + 1], out var cx1) && double.TryParse(tokens[i + 2], out var cy1)
-                    && double.TryParse(tokens[i + 3], out var cx2) && double.TryParse(tokens[i + 4], out var cy2)
-                    && double.TryParse(tokens[i + 5], out var x) && double.TryParse(tokens[i + 6], out var y))
-                {
-                    pts.Add((cx1, cy1));
-                    pts.Add((cx2, cy2));
-                    pts.Add((x, y));
-                    i += 7;
-                }
-                else i++;
-            }
-            else i++;
-        }
-        return pts;
-    }
-    
-    bool PathIntersectsRect(SvgPathItem path, double minX, double minY, double maxX, double maxY)
-    {
-        var tokens = path.D.Replace("M", " ").Replace("Q", " ").Replace("L", " ").Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        for (int i = 0; i + 1 < tokens.Length; i += 2)
-        {
-            if (double.TryParse(tokens[i], out var px) && double.TryParse(tokens[i + 1], out var py))
-            {
-                if (px >= minX && px <= maxX && py >= minY && py <= maxY)
-                    return true;
-            }
-        }
-        return false;
-    }
-
-    bool CircleIntersectsRect(SvgCircleItem c, double minX, double minY, double maxX, double maxY)
-    {
-        // Check if circle center is inside rect, or if rect overlaps circle
-        if (c.Cx >= minX && c.Cx <= maxX && c.Cy >= minY && c.Cy <= maxY)
-            return true;
-        // Check if any rect corner is inside the circle
-        var corners = new[] { (minX, minY), (maxX, minY), (minX, maxY), (maxX, maxY) };
-        foreach (var (x, y) in corners)
-        {
-            var dx = x - c.Cx;
-            var dy = y - c.Cy;
-            if ((dx * dx + dy * dy) <= (c.R * c.R)) return true;
-        }
-        // Check if circle overlaps any edge of the rect
-        if (c.Cx + c.R >= minX && c.Cx - c.R <= maxX && c.Cy + c.R >= minY && c.Cy - c.R <= maxY)
-            return true;
-        return false;
-    }
-
-    // Hit test for circles
-    bool IsPointInCircle(double x, double y, SvgCircleItem c)
-    {
-        var dx = x - c.Cx;
-        var dy = y - c.Cy;
-        return (dx * dx + dy * dy) <= (c.R * c.R);
-    }
-
     (double x, double y) ToSvgFromEvent(PointerEventArgs e)
     {
         var rect = _lastSvgRect;
@@ -822,7 +653,7 @@
                 copy = new SvgPathItem
                 {
                     Id = Guid.NewGuid().ToString(),
-                    D = OffsetPathD(path.D, mousePos),
+                    D = Path.OffsetPathD(path.D, mousePos),
                     Stroke = path.Stroke,
                     StrokeWidth = path.StrokeWidth,
                     Opacity = path.Opacity,
@@ -866,66 +697,12 @@
         {
             return (40, 40);
         }
-    }
-
-    private string OffsetPathD(string d, (double x, double y) offset)
-    {
-        var tokens = d.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var sb = new System.Text.StringBuilder();
-        int i = 0;
-        while (i < tokens.Length)
-        {
-            var cmd = tokens[i];
-            if (cmd == "M" || cmd == "L")
-            {
-                if (i + 2 < tokens.Length &&
-                    double.TryParse(tokens[i + 1], out var x) &&
-                    double.TryParse(tokens[i + 2], out var y))
-                {
-                    sb.Append($"{cmd} {x + offset.x} {y + offset.y} ");
-                    i += 3;
-                }
-                else i++;
-            }
-            else if (cmd == "Q")
-            {
-                if (i + 4 < tokens.Length &&
-                    double.TryParse(tokens[i + 1], out var cx) &&
-                    double.TryParse(tokens[i + 2], out var cy) &&
-                    double.TryParse(tokens[i + 3], out var x) &&
-                    double.TryParse(tokens[i + 4], out var y))
-                {
-                    sb.Append($"{cmd} {cx + offset.x} {cy + offset.y} {x + offset.x} {y + offset.y} ");
-                    i += 5;
-                }
-                else i++;
-            }
-            else if (cmd == "C")
-            {
-                if (i + 6 < tokens.Length &&
-                    double.TryParse(tokens[i + 1], out var cx1) &&
-                    double.TryParse(tokens[i + 2], out var cy1) &&
-                    double.TryParse(tokens[i + 3], out var cx2) &&
-                    double.TryParse(tokens[i + 4], out var cy2) &&
-                    double.TryParse(tokens[i + 5], out var x) &&
-                    double.TryParse(tokens[i + 6], out var y))
-                {
-                    sb.Append($"{cmd} {cx1 + offset.x} {cy1 + offset.y} {cx2 + offset.x} {cy2 + offset.y} {x + offset.x} {y + offset.y} ");
-                    i += 7;
-                }
-                else i++;
-            }
-            else
-            {
-                sb.Append(cmd + " ");
-                i++;
-            }
-        }
-        return sb.ToString().Trim();
-    }
+    }    
 
     protected override void OnInitialized()
     {
+        Editor.InitLocationCache(3, 3, 2000, 1200);
+
         // Subscribe to Editor.Changed event for redraws after import or state changes
         Editor.Changed += StateHasChanged;
         SettingsSvc.Changed += StateHasChanged;
@@ -945,4 +722,10 @@
     }
 
     public void DeleteSelectedPaths() => Editor.DeleteSelected();
+
+    public void DebugAction()
+    {
+        Console.WriteLine($"Cache contents: {Editor.LocationCache?.GetBucketsDebugString() ?? "No cache"}");
+    }
+    
 }

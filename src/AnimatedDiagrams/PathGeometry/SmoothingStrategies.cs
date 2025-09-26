@@ -1,6 +1,4 @@
-using System.Collections.Generic;
-
-namespace AnimatedDiagrams.Models;
+namespace AnimatedDiagrams.PathGeometry;
 
 public enum SmoothingType
 {

@@ -1,3 +1,5 @@
+using AnimatedDiagrams.PathGeometry;
+
 namespace AnimatedDiagrams.Models;
 
 public enum ThemeMode

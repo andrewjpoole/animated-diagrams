@@ -3,6 +3,7 @@ namespace AnimatedDiagrams.Services;
 using System;
 using System.Collections.Generic;
 using AnimatedDiagrams.Models;
+using AnimatedDiagrams.PathGeometry;
 
 public enum EditorMode
 {
@@ -13,6 +14,16 @@ public enum EditorMode
 
 public class PathEditorState
 {
+    // Item location cache for fast selection
+    public ItemLocationCache? LocationCache { get; private set; }
+
+    public void InitLocationCache(int gridX, int gridY, double canvasWidth, double canvasHeight)
+    {
+        LocationCache = new ItemLocationCache(gridX, gridY, canvasWidth, canvasHeight);
+        // Populate cache with existing items
+        foreach (var item in Items)
+            LocationCache.AddOrUpdate(item);
+    }
     public string DiagramName { get; set; } = "animated-diagram";
     public PensService PensSvc { get; }
     private SettingsService settingsService;
@@ -91,20 +102,23 @@ public class PathEditorState
 
     public void Add(PathItem item)
     {
-        Items.Add(item);
-        MarkDirty();
+    Items.Add(item);
+    LocationCache?.AddOrUpdate(item);
+    MarkDirty();
     }
 
     public void Add(SvgPathItem item)
     {
-        Items.Add(item);
-        MarkDirty();
+    Items.Add(item);
+    LocationCache?.AddOrUpdate(item);
+    MarkDirty();
     }
 
     public void Add(SvgCircleItem item)
     {
-        Items.Add(item);
-        MarkDirty();
+    Items.Add(item);
+    LocationCache?.AddOrUpdate(item);
+    MarkDirty();
     }
 
     public void InsertBefore(PathItem reference, PathItem newItem)
@@ -119,6 +133,7 @@ public class PathEditorState
     {
         if (Items.Remove(item))
         {
+            LocationCache?.Remove(item.Id);
             MarkDirty();
         }
     }

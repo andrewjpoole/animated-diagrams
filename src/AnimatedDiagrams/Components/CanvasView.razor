@@ -150,9 +150,9 @@
     }    
 </div>
 
-
-
 @code {
+    // Cancellation for drag-select selection logic
+    private System.Threading.CancellationTokenSource? _dragSelectCts;
     private Dictionary<SvgCircleItem, (double cx, double cy)>? _dragMoveOriginalCircles;
     private ElementReference _svg;
     private ElementReference _canvasWrapper;
@@ -171,6 +171,9 @@
     private (double x, double y)? _dragMoveStart;
     private Dictionary<SvgPathItem, List<(double x, double y)>>? _dragMoveOriginalPoints;
     private bool _pendingCircle = false;
+
+    // Throttle drag-select selection logic
+    private DateTime? _lastSelectionUpdate = null;
     
     private IEnumerable<(Node node, bool isControl)> SelectedPathNodesWithType
     {
@@ -237,6 +240,7 @@
     
     void OnWheel(WheelEventArgs e)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         var oldZoom = Editor.Zoom;
         var newZoom = oldZoom * (e.DeltaY < 0 ? 1.1 : 0.9);
         newZoom = Math.Clamp(newZoom, 0.1, 10);
@@ -251,6 +255,8 @@
         var newOffsetX = vbX - worldXBefore * newZoom;
         var newOffsetY = vbY - worldYBefore * newZoom;
         Editor.SetViewport(newZoom, newOffsetX, newOffsetY);
+        sw.Stop();
+        Console.WriteLine($"[Perf] OnWheel took {sw.Elapsed.TotalMilliseconds:F1} ms");
     }
 
     async void PointerDown(PointerEventArgs e)
@@ -402,8 +408,7 @@
 
     void PointerMove(PointerEventArgs e)        
     {
-        //Console.WriteLine($"PointerMove: type={e.PointerType} button={e.Button} pressure={e.Pressure}");
-        
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         // Ignore pen hover 
         if (e.Pressure == 0)
             return;
@@ -428,62 +433,78 @@
             var dx = e.ClientX - _panStart.x;
             var dy = e.ClientY - _panStart.y;
             Editor.SetViewport(Editor.Zoom, _offsetStart.x + dx, _offsetStart.y + dy);
+            sw.Stop();
+            Console.WriteLine($"[Perf] Pan PointerMove took {sw.Elapsed.TotalMilliseconds:F1} ms");
             return;
         }
         if (_dragSelecting && _dragStart.HasValue)
         {
             var svgHitPoint = ToSvgFromEvent(e);
             _dragEnd = svgHitPoint;
-            StateHasChanged(); // Force UI update for drag rectangle
+            StateHasChanged(); // Update drag rectangle immediately
 
-            // Run selection logic in the background so UI stays responsive
-            _ = System.Threading.Tasks.Task.Run(async () =>
-            {
-                var (x0, y0) = _dragStart.Value;
-                var (x1, y1) = svgHitPoint;
-                var minX = Math.Min(x0, x1);
-                var minY = Math.Min(y0, y1);
-                var width = Math.Abs(x1 - x0);
-                var height = Math.Abs(y1 - y0);
-                var candidateIds = Editor.LocationCache?.GetItemsInRect(minX, minY, width, height) ?? Array.Empty<string>();
-                var candidateSet = candidateIds is string[] arr ? new HashSet<string>(arr) : new HashSet<string>(candidateIds);
+            // Cancel any previous selection logic
+//            _dragSelectCts?.Cancel();
+//            _dragSelectCts = new System.Threading.CancellationTokenSource();
+//            var token = _dragSelectCts.Token;
 
-                var selected = new List<PathItem>();
-                foreach (var item in Editor.Items)
-                {
-                    if (!candidateSet.Contains(item.Id))
-                        continue;
-                    if (item is SvgPathItem p)
-                    {
-                        if (Path.IntersectsRect(p, minX, minY, minX + width, minY + height))
-                            selected.Add(item);
-                    }
-                    else if (item is SvgCircleItem c)
-                    {
-                        if (Path.CircleIntersectsRect(c, minX, minY, minX + width, minY + height))
-                            selected.Add(item);
-                    }
-                }
-
-                await InvokeAsync(() =>
-                {
-                    if (e.CtrlKey)
-                    {
-                        // Add to current selection
-                        var combined = Editor.SelectedItems.Union(selected).ToList();
-                        Editor.SelectMultiple(combined);
-                    }
-                    else
-                    {
-                        // Replace selection
-                        Editor.SelectMultiple(selected);
-                    }
-                    Editor.ClearHighlights();
-                    foreach (var item in Editor.SelectedItems) item.Highlight = true;
-                });
-            });
-            return;
+            // Debounce: wait 60ms before running selection logic
+//            _ = System.Threading.Tasks.Task.Run(async () =>
+//            {
+//                try
+//                {
+//                    await System.Threading.Tasks.Task.Delay(60, token);
+//                    if (token.IsCancellationRequested) return;
+//                    var (x0, y0) = _dragStart.Value;
+//                    var (x1, y1) = svgHitPoint;
+//                    var minX = Math.Min(x0, x1);
+//                    var minY = Math.Min(y0, y1);
+//                    var width = Math.Abs(x1 - x0);
+//                    var height = Math.Abs(y1 - y0);
+//                    var candidateIds = Editor.LocationCache?.GetItemsInRect(minX, minY, width, height) ?? Array.Empty<string>();
+//                    var candidateSet = candidateIds is string[] arr ? new HashSet<string>(arr) : new HashSet<string>(candidateIds);
+//                    var selected = new List<PathItem>();
+//                    foreach (var item in Editor.Items)
+//                    {
+//                        if (!candidateSet.Contains(item.Id))
+//                            continue;
+//                        if (item is SvgPathItem p)
+//                        {
+//                            if (Path.IntersectsRect(p, minX, minY, minX + width, minY + height))
+//                                selected.Add(item);
+//                        }
+//                        else if (item is SvgCircleItem c)
+//                        {
+//                            if (Path.CircleIntersectsRect(c, minX, minY, minX + width, minY + height))
+//                                selected.Add(item);
+//                        }
+//                    }
+//                    await InvokeAsync(() =>
+//                    {
+//                        if (e.CtrlKey)
+//                        {
+//                            var combined = Editor.SelectedItems.Union(selected).ToList();
+//                            Editor.SelectMultiple(combined);
+//                        }
+//                        else
+//                        {
+//                            Editor.SelectMultiple(selected);
+//                        }
+//                        Editor.ClearHighlights();
+//                        
+//                        foreach (var item in Editor.SelectedItems) 
+//                            item.Highlight = true;
+//                    });
+//                }
+//                catch (System.OperationCanceledException) 
+//                {
+//                    // Ignore, pointer is still down and dragging...
+//                }
+//            }, token);
+//            return;
         }
+        sw.Stop();
+        Console.WriteLine($"[Perf] PointerMove (other) took {sw.Elapsed.TotalMilliseconds:F1} ms");
         
         if (_dragMovingPaths && _dragMoveStart.HasValue && _dragMoveOriginalPoints != null)
         {
@@ -525,7 +546,50 @@
     }
 
     void PointerUp(PointerEventArgs e)
-    { 
+    {
+        // On drag-select end, run full geometry checks for final selection
+        if (_dragSelecting && _dragStart.HasValue && _dragEnd.HasValue)
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var (x0, y0) = _dragStart.Value;
+            var (x1, y1) = _dragEnd.Value;
+            var minX = Math.Min(x0, x1);
+            var minY = Math.Min(y0, y1);
+            var width = Math.Abs(x1 - x0);
+            var height = Math.Abs(y1 - y0);
+            var candidateIds = Editor.LocationCache?.GetItemsInRect(minX, minY, width, height) ?? Array.Empty<string>();
+            var candidateSet = candidateIds is string[] arr ? new HashSet<string>(arr) : new HashSet<string>(candidateIds);
+            var selected = new List<PathItem>();
+            foreach (var item in Editor.Items)
+            {
+                if (!candidateSet.Contains(item.Id))
+                    continue;
+                if (item is SvgPathItem p)
+                {
+                    if (Path.IntersectsRect(p, minX, minY, minX + width, minY + height))
+                        selected.Add(item);
+                }
+                else if (item is SvgCircleItem c)
+                {
+                    if (Path.CircleIntersectsRect(c, minX, minY, minX + width, minY + height))
+                        selected.Add(item);
+                }
+            }
+            sw.Stop();
+            Console.WriteLine($"[Perf] PointerUp selection logic took {sw.Elapsed.TotalMilliseconds:F1} ms for {selected.Count} items");
+            if (e.CtrlKey)
+            {
+                var combined = Editor.SelectedItems.Union(selected).ToList();
+                Editor.SelectMultiple(combined);
+            }
+            else
+            {
+                Editor.SelectMultiple(selected);
+            }
+            Editor.ClearHighlights();
+            foreach (var item in Editor.SelectedItems) item.Highlight = true;
+        }
+     
         if(Editor.ModeWhichShoudIgnorePointerEvents)
             return;
 
@@ -749,6 +813,12 @@
             await Task.Delay(100);
             await InvokeAsync(async () => await _canvasWrapper.FocusAsync());
         });
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+        await RefreshRectAsync();
     }
 
     public void Dispose()

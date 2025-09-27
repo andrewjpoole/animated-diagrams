@@ -216,7 +216,7 @@ public class SvgFileService
 
             // Dynamically determine grid size for cache
             int pathCount = items.Count(i => i is SvgPathItem || i is SvgCircleItem);
-            int grid = (int)Math.Clamp(Math.Ceiling(Math.Sqrt(pathCount)), 3, 20);
+            int grid = (int)Math.Clamp(Math.Ceiling(Math.Sqrt(pathCount)), 3, 10);
             Console.WriteLine($"[SVG Import] Using {grid}x{grid} cache buckets for {pathCount} items");
 
             // Now update UI/editor on main thread

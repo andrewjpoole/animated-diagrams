@@ -283,13 +283,36 @@ public static class Path
     // Returns true if any point of the path is inside the rect
     public static bool IntersectsRect(SvgPathItem path, double minX, double minY, double maxX, double maxY)
     {
-        var tokens = path.D.Replace("M", " ").Replace("Q", " ").Replace("L", " ").Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        for (int i = 0; i + 1 < tokens.Length; i += 2)
+        // Fast path: if bounds don't intersect, return false
+        if (path.Bounds.HasValue)
         {
-            if (double.TryParse(tokens[i], out var px) && double.TryParse(tokens[i + 1], out var py))
+            var b = path.Bounds.Value;
+            if (b.x > maxX || b.x + b.w < minX || b.y > maxY || b.y + b.h < minY)
+                return false;
+        }        
+
+        // Efficiently parse points
+        var d = path.D;
+        int i = 0;
+        int len = d.Length;
+        double px = 0, py = 0;
+        while (i < len)
+        {
+            // Skip non-numeric chars
+            while (i < len && (d[i] < '0' || d[i] > '9') && d[i] != '-' && d[i] != '.') i++;
+            int start = i;
+            while (i < len && (char.IsDigit(d[i]) || d[i] == '-' || d[i] == '.')) i++;
+            if (i > start && double.TryParse(d.Substring(start, i - start), out px))
             {
-                if (px >= minX && px <= maxX && py >= minY && py <= maxY)
-                    return true;
+                // Parse y
+                while (i < len && (d[i] < '0' || d[i] > '9') && d[i] != '-' && d[i] != '.') i++;
+                int startY = i;
+                while (i < len && (char.IsDigit(d[i]) || d[i] == '-' || d[i] == '.')) i++;
+                if (i > startY && double.TryParse(d.Substring(startY, i - startY), out py))
+                {
+                    if (px >= minX && px <= maxX && py >= minY && py <= maxY)
+                        return true;
+                }
             }
         }
         return false;

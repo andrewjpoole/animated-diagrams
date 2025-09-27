@@ -434,47 +434,54 @@
         {
             var svgHitPoint = ToSvgFromEvent(e);
             _dragEnd = svgHitPoint;
-            var (x0, y0) = _dragStart.Value;
-            var (x1, y1) = svgHitPoint;
-            var minX = Math.Min(x0, x1);
-            var minY = Math.Min(y0, y1);
-            var width = Math.Abs(x1 - x0);
-            var height = Math.Abs(y1 - y0);
-            // Use ItemLocationCache for fast bucket-based selection, then filter by actual intersection
-            var candidateIds = Editor.LocationCache?.GetItemsInRect(minX, minY, width, height) ?? Array.Empty<string>();
-            var candidateSet = candidateIds is string[] arr ? new HashSet<string>(arr) : new HashSet<string>(candidateIds);
+            StateHasChanged(); // Force UI update for drag rectangle
 
-            var selected = new List<PathItem>();
-            foreach (var item in Editor.Items)
+            // Run selection logic in the background so UI stays responsive
+            _ = System.Threading.Tasks.Task.Run(async () =>
             {
-                if (!candidateSet.Contains(item.Id))
-                    continue;
-                if (item is SvgPathItem p)
-                {
-                    if (Path.IntersectsRect(p, minX, minY, minX + width, minY + height))
-                        selected.Add(item);
-                }
-                else if (item is SvgCircleItem c)
-                {
-                    if (Path.CircleIntersectsRect(c, minX, minY, minX + width, minY + height))
-                        selected.Add(item);
-                }
-            }
+                var (x0, y0) = _dragStart.Value;
+                var (x1, y1) = svgHitPoint;
+                var minX = Math.Min(x0, x1);
+                var minY = Math.Min(y0, y1);
+                var width = Math.Abs(x1 - x0);
+                var height = Math.Abs(y1 - y0);
+                var candidateIds = Editor.LocationCache?.GetItemsInRect(minX, minY, width, height) ?? Array.Empty<string>();
+                var candidateSet = candidateIds is string[] arr ? new HashSet<string>(arr) : new HashSet<string>(candidateIds);
 
-            if (e.CtrlKey)
-            {
-                // Add to current selection
-                var combined = Editor.SelectedItems.Union(selected).ToList();
-                Editor.SelectMultiple(combined);
-            }
-            else
-            {
-                // Replace selection
-                Editor.SelectMultiple(selected);
-            }
-            Editor.ClearHighlights();
-            foreach (var item in Editor.SelectedItems) item.Highlight = true;
-            StateHasChanged();
+                var selected = new List<PathItem>();
+                foreach (var item in Editor.Items)
+                {
+                    if (!candidateSet.Contains(item.Id))
+                        continue;
+                    if (item is SvgPathItem p)
+                    {
+                        if (Path.IntersectsRect(p, minX, minY, minX + width, minY + height))
+                            selected.Add(item);
+                    }
+                    else if (item is SvgCircleItem c)
+                    {
+                        if (Path.CircleIntersectsRect(c, minX, minY, minX + width, minY + height))
+                            selected.Add(item);
+                    }
+                }
+
+                await InvokeAsync(() =>
+                {
+                    if (e.CtrlKey)
+                    {
+                        // Add to current selection
+                        var combined = Editor.SelectedItems.Union(selected).ToList();
+                        Editor.SelectMultiple(combined);
+                    }
+                    else
+                    {
+                        // Replace selection
+                        Editor.SelectMultiple(selected);
+                    }
+                    Editor.ClearHighlights();
+                    foreach (var item in Editor.SelectedItems) item.Highlight = true;
+                });
+            });
             return;
         }
         
@@ -513,6 +520,8 @@
 
         // Always use linear while drawing for smooth experience
         _activePath.D = SmoothingStrategies.Linear(_points);
+        _activePath.Bounds = Path.GetBounds(_activePath.D);
+        Editor.LocationCache?.AddOrUpdate(_activePath);
     }
 
     void PointerUp(PointerEventArgs e)
@@ -578,6 +587,15 @@
         // End multi-shape drag-move
         if (_dragMovingPaths)
         {
+            // Update bounds and cache for all moved paths
+            if (_dragMoveOriginalPoints != null)
+            {
+                foreach (var path in _dragMoveOriginalPoints.Keys)
+                {
+                    path.Bounds = Path.GetBounds(path.D);
+                    Editor.LocationCache?.AddOrUpdate(path);
+                }
+            }
             _dragMovingPaths = false;
             _dragMoveStart = null;
             _dragMoveOriginalPoints = null;
@@ -617,7 +635,9 @@
             {
                 step = maxStep;
             }
-            _activePath.D = SmoothingStrategies.BuildPath(_points, SettingsSvc.Settings.SmoothingStrategy, step);            
+            _activePath.D = SmoothingStrategies.BuildPath(_points, SettingsSvc.Settings.SmoothingStrategy, step);
+            _activePath.Bounds = Path.GetBounds(_activePath.D);
+            Editor.LocationCache?.AddOrUpdate(_activePath);
             Editor.Add(_activePath);
             UndoRedo.PushState(StateSnapshot());
             _activePath = null;
@@ -665,15 +685,17 @@
             PathItem? copy = null;
             if (item is SvgPathItem path)
             {
+                var newD = Path.OffsetPathD(path.D, mousePos);
                 copy = new SvgPathItem
                 {
                     Id = Guid.NewGuid().ToString(),
-                    D = Path.OffsetPathD(path.D, mousePos),
+                    D = newD,
                     Stroke = path.Stroke,
                     StrokeWidth = path.StrokeWidth,
                     Opacity = path.Opacity,
                     LineType = path.LineType,
-                    StrokeLineCap = path.StrokeLineCap
+                    StrokeLineCap = path.StrokeLineCap,
+                    Bounds = Path.GetBounds(newD)
                 };
             }
             else if (item is SvgCircleItem circle)

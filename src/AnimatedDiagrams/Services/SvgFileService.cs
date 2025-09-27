@@ -126,6 +126,7 @@ public class SvgFileService
         // Move SVG parsing and geometry to background thread, then update UI
         System.Threading.Tasks.Task.Run(() =>
         {
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             var doc = XDocument.Parse(xml);
             var items = new List<PathItem>();
             var comments = new List<XComment>();
@@ -148,7 +149,7 @@ public class SvgFileService
                                 Stroke = el.Attribute("stroke")?.Value ?? "#000",
                                 StrokeWidth = double.TryParse(el.Attribute("stroke-width")?.Value, out var sw) ? sw : 2,
                                 Opacity = double.TryParse(el.Attribute("opacity")?.Value, out var op) ? op : 1.0,
-                                Id = !string.IsNullOrWhiteSpace(idAttr) ? idAttr : null,
+                                Id = !string.IsNullOrWhiteSpace(idAttr) ? idAttr! : Guid.NewGuid().ToString(),
                                 Bounds = bounds
                             };
                             items.Add(path);
@@ -166,7 +167,7 @@ public class SvgFileService
                                 R = r,
                                 Fill = el.Attribute("fill")?.Value ?? "#000",
                                 Opacity = double.TryParse(el.Attribute("opacity")?.Value, out var cop) ? cop : 1.0,
-                                Id = !string.IsNullOrWhiteSpace(idAttr) ? idAttr : null
+                                Id = !string.IsNullOrWhiteSpace(idAttr) ? idAttr! : Guid.NewGuid().ToString()
                             };
                             items.Add(circ);
                         }
@@ -198,6 +199,8 @@ public class SvgFileService
             }
             // Zoom and center in 2000x1200 canvas
             double canvasW = 2000, canvasH = 1200;
+            stopwatch.Stop();
+            Console.WriteLine($"[SVG Import] Loaded {items.Count} items in {stopwatch.Elapsed.TotalMilliseconds:F1} ms");
             double contentW = Math.Max(1, maxX - minX);
             double contentH = Math.Max(1, maxY - minY);
             double margin = 40; // pixels
@@ -211,10 +214,16 @@ public class SvgFileService
             double offsetX = canvasW / 2.0 - cx * zoom;
             double offsetY = canvasH / 2.0 - cy * zoom;
 
+            // Dynamically determine grid size for cache
+            int pathCount = items.Count(i => i is SvgPathItem || i is SvgCircleItem);
+            int grid = (int)Math.Clamp(Math.Ceiling(Math.Sqrt(pathCount)), 3, 20);
+            Console.WriteLine($"[SVG Import] Using {grid}x{grid} cache buckets for {pathCount} items");
+
             // Now update UI/editor on main thread
             System.Threading.Tasks.Task.Run(() =>
             {
                 _editor.New();
+                _editor.InitLocationCache(grid, grid, canvasW, canvasH);
                 _editor.Items.AddRange(items);
                 _editor.LocationCache?.BuildBulk(items);
                 foreach (var comment in comments) ParseComment(comment.Value);

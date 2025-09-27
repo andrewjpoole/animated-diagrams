@@ -102,23 +102,28 @@ public class PathEditorState
 
     public void Add(PathItem item)
     {
-    Items.Add(item);
-    LocationCache?.AddOrUpdate(item);
-    MarkDirty();
+        Items.Add(item);
+        if (item is SvgPathItem p)
+        {
+            p.Bounds = AnimatedDiagrams.PathGeometry.Path.GetBounds(p.D);
+        }
+        LocationCache?.AddOrUpdate(item);
+        MarkDirty();
     }
 
     public void Add(SvgPathItem item)
     {
-    Items.Add(item);
-    LocationCache?.AddOrUpdate(item);
-    MarkDirty();
+        item.Bounds = AnimatedDiagrams.PathGeometry.Path.GetBounds(item.D);
+        Items.Add(item);
+        LocationCache?.AddOrUpdate(item);
+        MarkDirty();
     }
 
     public void Add(SvgCircleItem item)
     {
-    Items.Add(item);
-    LocationCache?.AddOrUpdate(item);
-    MarkDirty();
+        Items.Add(item);
+        LocationCache?.AddOrUpdate(item);
+        MarkDirty();
     }
 
     public void InsertBefore(PathItem reference, PathItem newItem)
@@ -226,6 +231,9 @@ public class PathEditorState
                     path.LineType = lineType;
                 if (strokeLineCap != null)
                     path.StrokeLineCap = strokeLineCap;
+                // Update bounds and cache if geometry changed
+                path.Bounds = AnimatedDiagrams.PathGeometry.Path.GetBounds(path.D);
+                LocationCache?.AddOrUpdate(path);
             }
             else if (item is SvgCircleItem circle)
             {
@@ -237,6 +245,7 @@ public class PathEditorState
                 // Optionally, if you want to support color for circles, set Fill
                 if (color != null)
                     circle.Fill = color;
+                LocationCache?.AddOrUpdate(circle);
             }
         }
         Changed?.Invoke();
@@ -254,6 +263,8 @@ public class PathEditorState
             if (!string.IsNullOrWhiteSpace(simplified) && simplified.StartsWith("M ") && simplified.Length > 10)
             {
                 item.D = simplified;
+                item.Bounds = AnimatedDiagrams.PathGeometry.Path.GetBounds(item.D);
+                LocationCache?.AddOrUpdate(item);
             }
             else
             {

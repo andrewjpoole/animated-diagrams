@@ -442,9 +442,24 @@
             var height = Math.Abs(y1 - y0);
             // Use ItemLocationCache for fast bucket-based selection, then filter by actual intersection
             var candidateIds = Editor.LocationCache?.GetItemsInRect(minX, minY, width, height) ?? Array.Empty<string>();
-            var selected = Editor.Items.Where(i => candidateIds.Contains(i.Id) &&
-                ((i is SvgPathItem p && Path.IntersectsRect(p, minX, minY, minX + width, minY + height)) ||
-                 (i is SvgCircleItem c && Path.CircleIntersectsRect(c, minX, minY, minX + width, minY + height)))).ToList();
+            var candidateSet = candidateIds is string[] arr ? new HashSet<string>(arr) : new HashSet<string>(candidateIds);
+
+            var selected = new List<PathItem>();
+            foreach (var item in Editor.Items)
+            {
+                if (!candidateSet.Contains(item.Id))
+                    continue;
+                if (item is SvgPathItem p)
+                {
+                    if (Path.IntersectsRect(p, minX, minY, minX + width, minY + height))
+                        selected.Add(item);
+                }
+                else if (item is SvgCircleItem c)
+                {
+                    if (Path.CircleIntersectsRect(c, minX, minY, minX + width, minY + height))
+                        selected.Add(item);
+                }
+            }
 
             if (e.CtrlKey)
             {

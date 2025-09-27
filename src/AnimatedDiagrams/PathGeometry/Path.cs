@@ -4,6 +4,49 @@ namespace AnimatedDiagrams.PathGeometry;
 
 public static class Path
 {
+
+    // Efficiently compute bounds for a path D string (minX, minY, width, height)
+    public static (double x, double y, double w, double h) GetBounds(string d)
+    {
+        var tokens = d.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
+        int i = 0;
+        while (i < tokens.Length)
+        {
+            var cmd = tokens[i];
+            if ((cmd == "M" || cmd == "L") && i + 2 < tokens.Length && double.TryParse(tokens[i + 1], out var x) && double.TryParse(tokens[i + 2], out var y))
+            {
+                minX = Math.Min(minX, x);
+                minY = Math.Min(minY, y);
+                maxX = Math.Max(maxX, x);
+                maxY = Math.Max(maxY, y);
+                i += 3;
+            }
+            else if (cmd == "Q" && i + 4 < tokens.Length && double.TryParse(tokens[i + 3], out var xq) && double.TryParse(tokens[i + 4], out var yq))
+            {
+                minX = Math.Min(minX, xq);
+                minY = Math.Min(minY, yq);
+                maxX = Math.Max(maxX, xq);
+                maxY = Math.Max(maxY, yq);
+                i += 5;
+            }
+            else if (cmd == "C" && i + 6 < tokens.Length && double.TryParse(tokens[i + 5], out var xc) && double.TryParse(tokens[i + 6], out var yc))
+            {
+                minX = Math.Min(minX, xc);
+                minY = Math.Min(minY, yc);
+                maxX = Math.Max(maxX, xc);
+                maxY = Math.Max(maxY, yc);
+                i += 7;
+            }
+            else
+            {
+                i++;
+            }
+        }
+        if (minX == double.MaxValue) minX = minY = maxX = maxY = 0;
+        return (minX, minY, maxX - minX, maxY - minY);
+    }
+
     // Returns true if any point or segment of the path is within threshold of (x,y)
     public static bool IsNearPoint(double x, double y, SvgPathItem path)
     {

@@ -17,6 +17,29 @@ namespace AnimatedDiagrams.Services
         private readonly Dictionary<string, List<(int, int)>> _itemBuckets = new();
 
         /// <summary>
+        /// Bulk-add all items to the cache efficiently (clears previous state).
+        /// </summary>
+        public void BuildBulk(IEnumerable<PathItem> items)
+        {
+            _buckets.Clear();
+            _itemBuckets.Clear();
+            foreach (var item in items)
+            {
+                var buckets = GetBucketsForItem(item);
+                _itemBuckets[item.Id] = buckets;
+                foreach (var bucket in buckets)
+                {
+                    if (!_buckets.TryGetValue(bucket, out var set))
+                    {
+                        set = new HashSet<string>();
+                        _buckets[bucket] = set;
+                    }
+                    set.Add(item.Id);
+                }
+            }
+        }
+
+        /// <summary>
         /// Initializes a new instance of the ItemLocationCache class.
         /// <paramref name="gridX"/> Number of buckets in the X direction.
         /// <paramref name="gridY"/> Number of buckets in the Y direction.
@@ -154,7 +177,7 @@ namespace AnimatedDiagrams.Services
                     buckets = GetBucketsForRect(c.Cx - c.R, c.Cy - c.R, c.R * 2, c.R * 2);
                     break;
                 case SvgPathItem p:
-                    var bounds = GetPathBounds(p.D);
+                    var bounds = p.Bounds ?? GetPathBounds(p.D);
                     buckets = GetBucketsForRect(bounds.x, bounds.y, bounds.w, bounds.h);
                     break;
             }

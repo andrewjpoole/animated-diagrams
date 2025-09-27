@@ -123,68 +123,70 @@ public class SvgFileService
 
     public void ImportSvg(string xml)
     {
-        var doc = XDocument.Parse(xml);
-        _editor.New();
-        void ImportElement(XNode node)
+        // Move SVG parsing and geometry to background thread, then update UI
+        System.Threading.Tasks.Task.Run(() =>
         {
-            switch (node)
+            var doc = XDocument.Parse(xml);
+            var items = new List<PathItem>();
+            var comments = new List<XComment>();
+            void ImportElement(XNode node)
             {
-                case XComment comment:
-                    ParseComment(comment.Value);
-                    break;
-                case XElement el:
-                    if (el.Name.LocalName == "path")
-                    {
-                        var idAttr = el.Attribute("id")?.Value;
-                        var path = new SvgPathItem
+                switch (node)
+                {
+                    case XComment comment:
+                        comments.Add(comment);
+                        break;
+                    case XElement el:
+                        if (el.Name.LocalName == "path")
                         {
-                            D = el.Attribute("d")?.Value ?? string.Empty,
-                            Stroke = el.Attribute("stroke")?.Value ?? "#000",
-                            StrokeWidth = double.TryParse(el.Attribute("stroke-width")?.Value, out var sw) ? sw : 2,
-                            Opacity = double.TryParse(el.Attribute("opacity")?.Value, out var op) ? op : 1.0,
-                            Id = !string.IsNullOrWhiteSpace(idAttr) ? idAttr : null
-                        };
-                        _editor.Add(path);
-                    }
-                    else if (el.Name.LocalName == "circle")
-                    {
-                        var idAttr = el.Attribute("id")?.Value;
-                        var circ = new SvgCircleItem
+                            var idAttr = el.Attribute("id")?.Value;
+                            var d = el.Attribute("d")?.Value ?? string.Empty;
+                            var bounds = AnimatedDiagrams.PathGeometry.Path.GetBounds(d);
+                            var path = new SvgPathItem
+                            {
+                                D = d,
+                                Stroke = el.Attribute("stroke")?.Value ?? "#000",
+                                StrokeWidth = double.TryParse(el.Attribute("stroke-width")?.Value, out var sw) ? sw : 2,
+                                Opacity = double.TryParse(el.Attribute("opacity")?.Value, out var op) ? op : 1.0,
+                                Id = !string.IsNullOrWhiteSpace(idAttr) ? idAttr : null,
+                                Bounds = bounds
+                            };
+                            items.Add(path);
+                        }
+                        else if (el.Name.LocalName == "circle")
                         {
-                            Cx = double.TryParse(el.Attribute("cx")?.Value, out var cx) ? cx : 0,
-                            Cy = double.TryParse(el.Attribute("cy")?.Value, out var cy) ? cy : 0,
-                            R = double.TryParse(el.Attribute("r")?.Value, out var r) ? r : 0,
-                            Fill = el.Attribute("fill")?.Value ?? "#000",
-                            Opacity = double.TryParse(el.Attribute("opacity")?.Value, out var cop) ? cop : 1.0,
-                            Id = !string.IsNullOrWhiteSpace(idAttr) ? idAttr : null
-                        };
-                        _editor.Add(circ);
-                    }
-                    foreach (var child in el.Nodes()) ImportElement(child);
-                    break;
+                            var idAttr = el.Attribute("id")?.Value;
+                            var cx = double.TryParse(el.Attribute("cx")?.Value, out var cxVal) ? cxVal : 0;
+                            var cy = double.TryParse(el.Attribute("cy")?.Value, out var cyVal) ? cyVal : 0;
+                            var r = double.TryParse(el.Attribute("r")?.Value, out var rVal) ? rVal : 0;
+                            var circ = new SvgCircleItem
+                            {
+                                Cx = cx,
+                                Cy = cy,
+                                R = r,
+                                Fill = el.Attribute("fill")?.Value ?? "#000",
+                                Opacity = double.TryParse(el.Attribute("opacity")?.Value, out var cop) ? cop : 1.0,
+                                Id = !string.IsNullOrWhiteSpace(idAttr) ? idAttr : null
+                            };
+                            items.Add(circ);
+                        }
+                        foreach (var child in el.Nodes()) ImportElement(child);
+                        break;
+                }
             }
-        }
-        ImportElement(doc.Root!);
-        // Center and zoom to fit imported content
-        if (_editor.Items.Count > 0)
-        {
+            ImportElement(doc.Root!);
+            // Compute bounds for zoom/center
             double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
-            foreach (var item in _editor.Items)
+            foreach (var item in items)
             {
                 switch (item)
                 {
-                    case SvgPathItem p:
-                        var tokens = p.D.Replace("M", " ").Replace("Q", " ").Replace("L", " ").Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                        for (int i = 0; i + 1 < tokens.Length; i += 2)
-                        {
-                            if (double.TryParse(tokens[i], out var px) && double.TryParse(tokens[i + 1], out var py))
-                            {
-                                minX = Math.Min(minX, px);
-                                minY = Math.Min(minY, py);
-                                maxX = Math.Max(maxX, px);
-                                maxY = Math.Max(maxY, py);
-                            }
-                        }
+                    case SvgPathItem p when p.Bounds.HasValue:
+                        var b = p.Bounds.Value;
+                        minX = Math.Min(minX, b.x);
+                        minY = Math.Min(minY, b.y);
+                        maxX = Math.Max(maxX, b.x + b.w);
+                        maxY = Math.Max(maxY, b.y + b.h);
                         break;
                     case SvgCircleItem c:
                         minX = Math.Min(minX, c.Cx - c.R);
@@ -208,9 +210,21 @@ public class SvgFileService
             double cy = (minY + maxY) / 2.0;
             double offsetX = canvasW / 2.0 - cx * zoom;
             double offsetY = canvasH / 2.0 - cy * zoom;
-            _editor.SetViewport(zoom, offsetX, offsetY);
-        }
-        _editor.MarkSaved();
+
+            // Now update UI/editor on main thread
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                _editor.New();
+                _editor.Items.AddRange(items);
+                _editor.LocationCache?.BuildBulk(items);
+                foreach (var comment in comments) ParseComment(comment.Value);
+                if (_editor.Items.Count > 0)
+                {
+                    _editor.SetViewport(zoom, offsetX, offsetY);
+                }
+                _editor.MarkSaved();
+            });
+        });
     }
 
     private void ParseComment(string value)

@@ -24,6 +24,8 @@ public abstract class PathItem
 
 public class SvgPathItem : PathItem, PathProperties
 {
+    // Cached bounds: (minX, minY, width, height)
+    public (double x, double y, double w, double h)? Bounds { get; set; }
     public string D { get; set; } = string.Empty; // path data
     public string Stroke { get; set; } = "#000";
     public double StrokeWidth { get; set; } = 2;

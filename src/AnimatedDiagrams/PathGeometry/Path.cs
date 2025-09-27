@@ -8,58 +8,168 @@ public static class Path
     // Efficiently compute bounds for a path D string (minX, minY, width, height)
     public static (double x, double y, double w, double h) GetBounds(string d)
     {
-        var tokens = d.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
         int i = 0;
-        while (i < tokens.Length)
+        double cx = 0, cy = 0; // current point
+        double startX = 0, startY = 0;
+        List<(double x, double y)> coords = new();
+        while (i < d.Length)
         {
-            var cmd = tokens[i];
-            if ((cmd == "M" || cmd == "L") && i + 2 < tokens.Length && double.TryParse(tokens[i + 1], out var x) && double.TryParse(tokens[i + 2], out var y))
+            // Skip whitespace
+            while (i < d.Length && char.IsWhiteSpace(d[i])) i++;
+            if (i >= d.Length) break;
+            char cmd = d[i];
+            if (!char.IsLetter(cmd)) { i++; continue; }
+            i++;
+            // Parse numbers after command
+            List<double> nums = new();
+            while (i < d.Length)
             {
-                minX = Math.Min(minX, x);
-                minY = Math.Min(minY, y);
-                maxX = Math.Max(maxX, x);
-                maxY = Math.Max(maxY, y);
-                i += 3;
+                while (i < d.Length && (char.IsWhiteSpace(d[i]) || d[i] == ',')) i++;
+                if (i < d.Length && (char.IsDigit(d[i]) || d[i] == '-' || d[i] == '.'))
+                {
+                    int start = i;
+                    while (i < d.Length && (char.IsDigit(d[i]) || d[i] == '-' || d[i] == '.')) i++;
+                    if (double.TryParse(d.Substring(start, i - start), out var val))
+                        nums.Add(val);
+                }
+                else break;
             }
-            else if (cmd == "Q" && i + 4 < tokens.Length && double.TryParse(tokens[i + 3], out var xq) && double.TryParse(tokens[i + 4], out var yq))
+            int n = 0;
+            switch (char.ToUpper(cmd))
             {
-                minX = Math.Min(minX, xq);
-                minY = Math.Min(minY, yq);
-                maxX = Math.Max(maxX, xq);
-                maxY = Math.Max(maxY, yq);
-                i += 5;
-            }
-            else if (cmd == "C" && i + 6 < tokens.Length && double.TryParse(tokens[i + 5], out var xc) && double.TryParse(tokens[i + 6], out var yc))
-            {
-                minX = Math.Min(minX, xc);
-                minY = Math.Min(minY, yc);
-                maxX = Math.Max(maxX, xc);
-                maxY = Math.Max(maxY, yc);
-                i += 7;
-            }
-            else
-            {
-                i++;
+                case 'M':
+                    while (n + 1 < nums.Count)
+                    {
+                        double nx = nums[n], ny = nums[n + 1];
+                        if (char.IsLower(cmd)) { nx += cx; ny += cy; }
+                        cx = nx; cy = ny;
+                        startX = cx; startY = cy;
+                        coords.Add((cx, cy));
+                        minX = Math.Min(minX, cx);
+                        minY = Math.Min(minY, cy);
+                        maxX = Math.Max(maxX, cx);
+                        maxY = Math.Max(maxY, cy);
+                        n += 2;
+                    }
+                    break;
+                case 'L':
+                    while (n + 1 < nums.Count)
+                    {
+                        double nx = nums[n], ny = nums[n + 1];
+                        if (char.IsLower(cmd)) { nx += cx; ny += cy; }
+                        cx = nx; cy = ny;
+                        coords.Add((cx, cy));
+                        minX = Math.Min(minX, cx);
+                        minY = Math.Min(minY, cy);
+                        maxX = Math.Max(maxX, cx);
+                        maxY = Math.Max(maxY, cy);
+                        n += 2;
+                    }
+                    break;
+                case 'C':
+                    while (n + 5 < nums.Count)
+                    {
+                        double x1 = nums[n], y1 = nums[n + 1], x2 = nums[n + 2], y2 = nums[n + 3], x3 = nums[n + 4], y3 = nums[n + 5];
+                        if (char.IsLower(cmd))
+                        {
+                            x1 += cx; y1 += cy; x2 += cx; y2 += cy; x3 += cx; y3 += cy;
+                        }
+                        // For bounds, just use the end point (x3, y3)
+                        cx = x3; cy = y3;
+                        coords.Add((cx, cy));
+                        minX = Math.Min(minX, cx);
+                        minY = Math.Min(minY, cy);
+                        maxX = Math.Max(maxX, cx);
+                        maxY = Math.Max(maxY, cy);
+                        n += 6;
+                    }
+                    break;
             }
         }
         if (minX == double.MaxValue) minX = minY = maxX = maxY = 0;
+        Console.WriteLine($"[Debug] GetBounds: d=\"{d}\" coords=[{string.Join(", ", coords.Select(c => $"({c.x},{c.y})"))}] bounds=({minX},{minY},{maxX-minX},{maxY-minY})");
         return (minX, minY, maxX - minX, maxY - minY);
     }
 
     // Returns true if any point or segment of the path is within threshold of (x,y)
     public static bool IsNearPoint(double x, double y, SvgPathItem path)
     {
-        var tokens = path.D.Replace("M", " ").Replace("Q", " ").Replace("L", " ").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        // Support M/m, L/l, C/c commands (absolute and relative)
+        var d = path.D;
+        int i = 0;
+        double cx = 0, cy = 0; // current point
+        double startX = 0, startY = 0;
         const double threshold = 5;
-        if (tokens.Length < 4) return false;
-        for (int i = 0; i + 3 < tokens.Length; i += 2)
+        while (i < d.Length)
         {
-            if (double.TryParse(tokens[i], out var x1) && double.TryParse(tokens[i + 1], out var y1) &&
-                double.TryParse(tokens[i + 2], out var x2) && double.TryParse(tokens[i + 3], out var y2))
+            // Skip whitespace
+            while (i < d.Length && char.IsWhiteSpace(d[i])) i++;
+            if (i >= d.Length) break;
+            char cmd = d[i];
+            if (!char.IsLetter(cmd)) { i++; continue; }
+            i++;
+            // Parse numbers after command
+            List<double> nums = new();
+            while (i < d.Length)
             {
-                var dist = DistanceToSegment(x, y, x1, y1, x2, y2);
-                if (dist < threshold) return true;
+                while (i < d.Length && (char.IsWhiteSpace(d[i]) || d[i] == ',')) i++;
+                if (i < d.Length && (char.IsDigit(d[i]) || d[i] == '-' || d[i] == '.'))
+                {
+                    int start = i;
+                    while (i < d.Length && (char.IsDigit(d[i]) || d[i] == '-' || d[i] == '.')) i++;
+                    if (double.TryParse(d.Substring(start, i - start), out var val))
+                        nums.Add(val);
+                }
+                else break;
+            }
+            int n = 0;
+            switch (char.ToUpper(cmd))
+            {
+                case 'M':
+                    while (n + 1 < nums.Count)
+                    {
+                        double nx = nums[n], ny = nums[n + 1];
+                        if (char.IsLower(cmd)) { nx += cx; ny += cy; }
+                        cx = nx; cy = ny;
+                        if (n == 0) { startX = cx; startY = cy; }
+                        n += 2;
+                    }
+                    break;
+                case 'L':
+                    while (n + 1 < nums.Count)
+                    {
+                        double nx = nums[n], ny = nums[n + 1];
+                        if (char.IsLower(cmd)) { nx += cx; ny += cy; }
+                        var dist = DistanceToSegment(x, y, cx, cy, nx, ny);
+                        if (dist < threshold) return true;
+                        cx = nx; cy = ny;
+                        n += 2;
+                    }
+                    break;
+                case 'C':
+                    while (n + 5 < nums.Count)
+                    {
+                        double x1 = nums[n], y1 = nums[n + 1], x2 = nums[n + 2], y2 = nums[n + 3], x3 = nums[n + 4], y3 = nums[n + 5];
+                        if (char.IsLower(cmd))
+                        {
+                            x1 += cx; y1 += cy; x2 += cx; y2 += cy; x3 += cx; y3 += cy;
+                        }
+                        // Subdivide cubic Bezier into segments and check each
+                        double prevX = cx, prevY = cy;
+                        for (int t = 1; t <= 10; t++)
+                        {
+                            double tt = t / 10.0;
+                            double bx = Math.Pow(1 - tt, 3) * cx + 3 * Math.Pow(1 - tt, 2) * tt * x1 + 3 * (1 - tt) * tt * tt * x2 + Math.Pow(tt, 3) * x3;
+                            double by = Math.Pow(1 - tt, 3) * cy + 3 * Math.Pow(1 - tt, 2) * tt * y1 + 3 * (1 - tt) * tt * tt * y2 + Math.Pow(tt, 3) * y3;
+                            var dist = DistanceToSegment(x, y, prevX, prevY, bx, by);
+                            if (dist < threshold) return true;
+                            prevX = bx; prevY = by;
+                        }
+                        cx = x3; cy = y3;
+                        n += 6;
+                    }
+                    break;
             }
         }
         return false;
@@ -288,7 +398,10 @@ public static class Path
         {
             var b = path.Bounds.Value;
             if (b.x > maxX || b.x + b.w < minX || b.y > maxY || b.y + b.h < minY)
+            {
+                Console.WriteLine($"[Debug] IntersectsRect: Path {path.Id} bounds=({b.x},{b.y},{b.w},{b.h}) does not intersect rect=({minX},{minY},{maxX},{maxY})");
                 return false;
+            }
         }        
 
         // Efficiently parse points
@@ -311,10 +424,14 @@ public static class Path
                 if (i > startY && double.TryParse(d.Substring(startY, i - startY), out py))
                 {
                     if (px >= minX && px <= maxX && py >= minY && py <= maxY)
+                    {
+                        Console.WriteLine($"[Debug] IntersectsRect: Path {path.Id} point=({px},{py}) is inside rect=({minX},{minY},{maxX},{maxY})");
                         return true;
+                    }
                 }
             }
         }
+        Console.WriteLine($"[Debug] IntersectsRect: Path {path.Id} does not intersect rect=({minX},{minY},{maxX},{maxY})");
         return false;
     }
 

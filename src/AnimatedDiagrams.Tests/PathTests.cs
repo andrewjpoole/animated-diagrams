@@ -75,15 +75,15 @@ namespace AnimatedDiagrams.Tests
             var path = new SvgPathItem { D = "M 5 5 L 10 10" };
             path.Bounds = Path.GetBounds(path.D);
             // Full geometry mode
-            Assert.True(Path.IntersectsRect(path, 0, 0, 6, 6, false));
+            Assert.True(Path.IntersectsRect(path, 0, 0, 6, 6));
             // Fast bounds-only mode (should also be true, as bounds overlap)
-            Assert.True(Path.IntersectsRect(path, 0, 0, 6, 6, true));
+            Assert.True(Path.IntersectsRect(path, 0, 0, 6, 6));
 
             // Path outside rect
             var path2 = new SvgPathItem { D = "M 20 20 L 30 30" };
             path2.Bounds = Path.GetBounds(path2.D);
-            Assert.False(Path.IntersectsRect(path2, 0, 0, 6, 6, false));
-            Assert.False(Path.IntersectsRect(path2, 0, 0, 6, 6, true));
+            Assert.False(Path.IntersectsRect(path2, 0, 0, 6, 6));
+            Assert.False(Path.IntersectsRect(path2, 0, 0, 6, 6));
         }
 
         [Fact]

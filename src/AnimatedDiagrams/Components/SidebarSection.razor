@@ -7,9 +7,9 @@
 }
 else
 {
-    <div class="sidebar-section" style="@(Resizable ? $"height:{Height}px;position:relative;display:flex;flex-direction:column;" : (MaxHeight!=null?$"max-height:{MaxHeight};overflow-y:auto;":""))">
+    <div class="sidebar-section" style="@(Resizable ? $"height:{Height - 10}px;position:relative;display:flex;flex-direction:column;padding-bottom:16px;overflow-y:visible;" : (MaxHeight!=null?$"max-height:{MaxHeight};overflow-y:auto;":""))">
         <div class="section-header" @onclick="Toggle">▼ @Title</div>
-    <div class="section-body" style="flex:1 1 auto;overflow-y:auto;overflow-x:hidden;">
+    <div class="section-body" style="flex:1 1 auto;min-height:0;overflow-y:hidden;overflow-x:hidden;@(Resizable ? ";height:calc(100% - 18px)" : "")">
             @ChildContent
         </div>
         @if (Resizable)

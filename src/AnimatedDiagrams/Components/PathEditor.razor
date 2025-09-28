@@ -4,126 +4,131 @@
 @inject PathEditorState EditorState
 @inject SvgFileService Svg
 
-<div class="path-editor">
-    <div class="toolbar">
-    <button class="app-btn" @onclick="AddPause" title="Add a pause when animating">⏸️ Pause</button>
-    <button class="app-btn" @onclick="AddSpeed" title="Add a speed change when animating">⏩ Speed</button>
+
+
+<div class="path-editor" style="display:flex;flex-direction:column;height:calc(100% - 12px);min-height:0;">
+    <div class="toolbar" style="flex:0 0 auto;">
+        <button class="app-btn" @onclick="AddPause" title="Add a pause when animating">⏸️ Pause</button>
+        <button class="app-btn" @onclick="AddSpeed" title="Add a speed change when animating">⏩ Speed</button>
         @if(!string.IsNullOrEmpty(_exportMessage))
         {
             <span class="export-status">@_exportMessage</span>
         }
     </div>
-    <ul>
-        @for (int i = 0; i < EditorState.Items.Count; i++)
-        {
-            var item = EditorState.Items[i];
-            var isDropTarget = (_dragTargetIndex.HasValue && _dragTargetIndex.Value == i);
-            <li class="item @(item.Selected?"sel":null) @(isDropTarget?"drop-target":null)"
-                @onmousedown="(e) => Select(item, e)"
-                tabindex="0"
-                style="@(item.Selected ? "background:var(--active-bg);" : null)"
-                draggable="@((item is PauseHintItem p && _editingPauseId == p.Id) || (item is SpeedHintItem s && _editingSpeedId == s.Id) ? "false" : "true")"
-                @ondragstart="(e) => OnDragStart(e, EditorState.Items.IndexOf(item))"
-                @ondragover:preventDefault="true" @ondragover="(e) => OnDragOver(e, EditorState.Items.IndexOf(item))"
-                @ondragenter:preventDefault="true" @ondragenter="(e) => OnDragEnter(e, EditorState.Items.IndexOf(item))"
-                @ondrop:preventDefault="true" @ondrop="(e) => OnDrop(e, EditorState.Items.IndexOf(item))"
-                @ondragend="OnDragEnd"
-                title="Drag to re-order..."
-            >
-                @if (item is PauseHintItem pause)
-                {
-                    <div class="stroke-style-editor active" style="display:flex;align-items:center;gap:10px;padding:4px 10px;">
-                        @if (_editingPauseId == pause.Id)
-                        {
-                            <span style="font-weight:600;color:#ffe600;">Pause</span>
-                            <div style="display:flex;flex-direction:column;gap:8px;">
-                                <div style="display:flex;align-items:center;gap:10px;">
-                                    <input type="range" min="0" max="5000" step="100" style="width:100px;" @bind="pause.Milliseconds" @ondragstart:preventDefault="true" />
-                                    <input type="number" min="0" max="10000" step="100" style="width:70px;font-size:0.95em;" @bind="pause.Milliseconds" @bind:event="oninput" @ondragstart:preventDefault="true" />
-                                    <span style="font-size:0.95em;">ms</span>
+    <div class="path-list-scroll" style="flex:1 1 auto;min-height:0;overflow:auto;">
+        <ul>
+            @for (int i = 0; i < EditorState.Items.Count; i++)
+            {
+                var item = EditorState.Items[i];
+                var isDropTarget = (_dragTargetIndex.HasValue && _dragTargetIndex.Value == i);
+                <li class="item @(item.Selected?"sel":null) @(isDropTarget?"drop-target":null)"
+                    @onmousedown="(e) => Select(item, e)"
+                    tabindex="0"
+                    style="@(item.Selected ? "background:var(--active-bg);" : null)"
+                    draggable="@((item is PauseHintItem p && _editingPauseId == p.Id) || (item is SpeedHintItem s && _editingSpeedId == s.Id) ? "false" : "true")"
+                    @ondragstart="(e) => OnDragStart(e, EditorState.Items.IndexOf(item))"
+                    @ondragover:preventDefault="true" @ondragover="(e) => OnDragOver(e, EditorState.Items.IndexOf(item))"
+                    @ondragenter:preventDefault="true" @ondragenter="(e) => OnDragEnter(e, EditorState.Items.IndexOf(item))"
+                    @ondrop:preventDefault="true" @ondrop="(e) => OnDrop(e, EditorState.Items.IndexOf(item))"
+                    @ondragend="OnDragEnd"
+                    title="Drag to re-order..."
+                >
+                    @if (item is PauseHintItem pause)
+                    {
+                        <div class="stroke-style-editor active" style="display:flex;align-items:center;gap:10px;padding:4px 10px;">
+                            @if (_editingPauseId == pause.Id)
+                            {
+                                <span style="font-weight:600;color:#ffe600;">Pause</span>
+                                <div style="display:flex;flex-direction:column;gap:8px;">
+                                    <div style="display:flex;align-items:center;gap:10px;">
+                                        <input type="range" min="0" max="5000" step="100" style="width:100px;" @bind="pause.Milliseconds" @ondragstart:preventDefault="true" />
+                                        <input type="number" min="0" max="10000" step="100" style="width:70px;font-size:0.95em;" @bind="pause.Milliseconds" @bind:event="oninput" @ondragstart:preventDefault="true" />
+                                        <span style="font-size:0.95em;">ms</span>
+                                    </div>
+                                    <div style="display:flex;gap:8px;">
+                                        <button class="app-btn" @onclick="() => DoneEditPause()" title="Done">✔</button>
+                                        <button class="app-btn" @onclick="() => CancelEditPause()" title="Cancel">✖</button>
+                                    </div>
                                 </div>
-                                <div style="display:flex;gap:8px;">
-                                    <button class="app-btn" @onclick="() => DoneEditPause()" title="Done">✔</button>
-                                    <button class="app-btn" @onclick="() => CancelEditPause()" title="Cancel">✖</button>
+                            }
+                            else
+                            {
+                                <span style="font-weight:600;color:#ffe600;">Pause</span>
+                                <span style="font-size:0.95em;">@pause.Milliseconds ms</span>
+                                <button class="app-btn" @onclick="() => EditPause(pause.Id)" title="Edit">✎</button>
+                                <button class="app-btn" @onclick="() => Delete(item)" title="Delete">✖</button>
+                            }
+                        </div>
+                    }
+                    else if (item is SpeedHintItem speed)
+                    {
+                        <div class="stroke-style-editor active" style="display:flex;align-items:center;gap:10px;padding:4px 10px;">
+                            @if (_editingSpeedId == speed.Id)
+                            {
+                                <span style="font-weight:600;color:#00e676;">Speed</span>
+                                <div style="display:flex;flex-direction:column;gap:8px;">
+                                    <div style="display:flex;align-items:center;gap:10px;">
+                                        <input type="range" min="0.1" max="4" step="0.01" style="width:100px;" @bind="speed.Multiplier" @ondragstart:preventDefault="true" />
+                                        <input type="number" min="0.1" max="10" step="0.01" style="width:70px;font-size:0.95em;" @bind="speed.Multiplier" @bind:event="oninput" @ondragstart:preventDefault="true" />
+                                        <span style="font-size:0.95em;">x</span>
+                                    </div>
+                                    <div style="display:flex;gap:8px;">
+                                        <button class="app-btn" @onclick="() => DoneEditSpeed()" title="Done">✔</button>
+                                        <button class="app-btn" @onclick="() => CancelEditSpeed()" title="Cancel">✖</button>
+                                    </div>
                                 </div>
-                            </div>
-                        }
-                        else
-                        {
-                            <span style="font-weight:600;color:#ffe600;">Pause</span>
-                            <span style="font-size:0.95em;">@pause.Milliseconds ms</span>
-                            <button class="app-btn" @onclick="() => EditPause(pause.Id)" title="Edit">✎</button>
-                            <button class="app-btn" @onclick="() => Delete(item)" title="Delete">✖</button>
-                        }
-                    </div>
-                }
-                else if (item is SpeedHintItem speed)
-                {
-                    <div class="stroke-style-editor active" style="display:flex;align-items:center;gap:10px;padding:4px 10px;">
-                        @if (_editingSpeedId == speed.Id)
-                        {
-                            <span style="font-weight:600;color:#00e676;">Speed</span>
-                            <div style="display:flex;flex-direction:column;gap:8px;">
-                                <div style="display:flex;align-items:center;gap:10px;">
-                                    <input type="range" min="0.1" max="4" step="0.01" style="width:100px;" @bind="speed.Multiplier" @ondragstart:preventDefault="true" />
-                                    <input type="number" min="0.1" max="10" step="0.01" style="width:70px;font-size:0.95em;" @bind="speed.Multiplier" @bind:event="oninput" @ondragstart:preventDefault="true" />
-                                    <span style="font-size:0.95em;">x</span>
-                                </div>
-                                <div style="display:flex;gap:8px;">
-                                    <button class="app-btn" @onclick="() => DoneEditSpeed()" title="Done">✔</button>
-                                    <button class="app-btn" @onclick="() => CancelEditSpeed()" title="Cancel">✖</button>
-                                </div>
-                            </div>
-                        }
-                        else
-                        {
-                            <span style="font-weight:600;color:#00e676;">Speed</span>
-                            <span style="font-size:0.95em;">@speed.Multiplier x</span>
-                            <button class="app-btn" @onclick="() => EditSpeed(speed.Id)" title="Edit Path (coming soon)">🔧</button>
-                            <button class="app-btn" @onclick="() => Delete(item)" title="Delete Path">✖</button>
-                        }
-                    </div>
-                }
-                else
-                {
-                    @RenderLabel(item)
-                }
-            </li>
-        }
-    </ul>
-</div>
-
-@if (EditorState.SelectedItems.OfType<SvgPathItem>().Any())
-{
-    var selectedPaths = EditorState.SelectedItems.OfType<SvgPathItem>().ToList();
-    var first = selectedPaths.First();
-    string stokeColour = selectedPaths.Select(p => p.Stroke).Distinct().Count() == 1 ? first.Stroke : "-";
-    double strokeWidth = selectedPaths.Select(p => p.StrokeWidth).Distinct().Count() == 1 ? first.StrokeWidth : double.NaN;
-    double opacity = selectedPaths.Select(p => p.Opacity).Distinct().Count() == 1 ? first.Opacity : double.NaN;
-    string lineType = selectedPaths.Select(p => p.LineType).Distinct().Count() == 1 ? first.LineType : "-";
-    string strokeLineCap = selectedPaths.Select(p => p.StrokeLineCap).Distinct().Count() == 1 ? first.StrokeLineCap : "-";
-
-    var mixedProps = new EmptyPathProperties
-    {
-        Stroke = stokeColour,
-        StrokeWidth = strokeWidth,
-        Opacity = opacity,
-        LineType = lineType,
-        StrokeLineCap = strokeLineCap
-    };
-    <label>Selection</label>
-    <StrokeStyleEditor
-        Props="mixedProps"
-        OnChanged="OnStyleChanged"
-        OnRemove="DeleteSelectedItems"
-    />
-    <div class="path-editor-actions" style="margin-top:12px;display:flex;gap:8px;">
-    <button class="app-btn" @onclick="MoveSelectedUp" disabled="@(EditorState.SelectedItems.Count == 0)" title="Move up">▲</button>
-    <button class="app-btn" @onclick="MoveSelectedDown" disabled="@(EditorState.SelectedItems.Count == 0)" title="Move down">▼</button>
-    <button class="app-btn" @onclick="EditNodes" disabled="@(EditorState.SelectedItems.Count != 1 || !(EditorState.SelectedItems.FirstOrDefault() is SvgPathItem))" title="Edit nodes">🔧</button>
-    <button class="app-btn" @onclick="SimplifySelectedItems" disabled="@(EditorState.SelectedItems.Count == 0)" title="Simplify">♻️</button>
+                            }
+                            else
+                            {
+                                <span style="font-weight:600;color:#00e676;">Speed</span>
+                                <span style="font-size:0.95em;">@speed.Multiplier x</span>
+                                <button class="app-btn" @onclick="() => EditSpeed(speed.Id)" title="Edit Path (coming soon)">🔧</button>
+                                <button class="app-btn" @onclick="() => Delete(item)" title="Delete Path">✖</button>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        @RenderLabel(item)
+                    }
+                </li>
+            }
+        </ul>
     </div>
-}
+    <div style="flex:0 0 auto;">
+        @if (EditorState.SelectedItems.OfType<SvgPathItem>().Any())
+        {
+            var selectedPaths = EditorState.SelectedItems.OfType<SvgPathItem>().ToList();
+            var first = selectedPaths.First();
+            string stokeColour = selectedPaths.Select(p => p.Stroke).Distinct().Count() == 1 ? first.Stroke : "-";
+            double strokeWidth = selectedPaths.Select(p => p.StrokeWidth).Distinct().Count() == 1 ? first.StrokeWidth : double.NaN;
+            double opacity = selectedPaths.Select(p => p.Opacity).Distinct().Count() == 1 ? first.Opacity : double.NaN;
+            string lineType = selectedPaths.Select(p => p.LineType).Distinct().Count() == 1 ? first.LineType : "-";
+            string strokeLineCap = selectedPaths.Select(p => p.StrokeLineCap).Distinct().Count() == 1 ? first.StrokeLineCap : "-";
+
+            var mixedProps = new EmptyPathProperties
+            {
+                Stroke = stokeColour,
+                StrokeWidth = strokeWidth,
+                Opacity = opacity,
+                LineType = lineType,
+                StrokeLineCap = strokeLineCap
+            };
+            <label>Selection</label>
+            <StrokeStyleEditor
+                Props="mixedProps"
+                OnChanged="OnStyleChanged"
+                OnRemove="DeleteSelectedItems"
+            />
+        }
+        <div class="path-editor-actions" style="margin-top:12px;display:flex;gap:8px;">
+            <button class="app-btn" @onclick="MoveSelectedUp" disabled="@(EditorState.SelectedItems.Count == 0)" title="Move up">▲</button>
+            <button class="app-btn" @onclick="MoveSelectedDown" disabled="@(EditorState.SelectedItems.Count == 0)" title="Move down">▼</button>
+            <button class="app-btn" @onclick="EditNodes" disabled="@(EditorState.SelectedItems.Count != 1 || !(EditorState.SelectedItems.FirstOrDefault() is SvgPathItem))" title="Edit nodes">🔧</button>
+            <button class="app-btn" @onclick="SimplifySelectedItems" disabled="@(EditorState.SelectedItems.Count == 0)" title="Simplify">♻️</button>
+        </div>
+    </div>
+</div>
 
 @code {
     private string? _editingPauseId;

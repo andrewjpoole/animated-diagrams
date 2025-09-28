@@ -1,6 +1,15 @@
 .path-editor ul {
 	position: relative;
 }
+.path-editor {
+	overflow: visible !important;
+	min-height: 0;
+}
+.path-list-scroll {
+	overflow: auto;
+	min-height: 0;
+	max-height: 100%;
+}
 /* Global button style for all app buttons */
 .app-btn {
 	background: #444;

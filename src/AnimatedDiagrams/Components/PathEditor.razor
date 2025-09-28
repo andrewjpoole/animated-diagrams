@@ -22,6 +22,7 @@
                 var item = EditorState.Items[i];
                 var isDropTarget = (_dragTargetIndex.HasValue && _dragTargetIndex.Value == i);
                 <li class="item @(item.Selected?"sel":null) @(isDropTarget?"drop-target":null)"
+                    id="pathlist-@item.Id"
                     @onmousedown="(e) => Select(item, e)"
                     tabindex="0"
                     style="@(item.Selected ? "background:var(--active-bg);" : null)"
@@ -150,8 +151,18 @@
 
     void SimplifySelectedItems() => EditorState.SimplifySelectedItems();
     
+    private IReadOnlyList<PathItem> _lastSelected = Array.Empty<PathItem>();
     protected override void OnAfterRender(bool firstRender)
     {
+        // Scroll to first selected item if selection changed
+        var selected = EditorState.SelectedItems.ToList();
+        if (selected.Count > 0 && !_lastSelected.SequenceEqual(selected))
+        {
+            var first = selected[0];
+            JS.InvokeVoidAsync("scrollPathListItemToTop", $"pathlist-{first.Id}");
+        }
+        _lastSelected = selected;
+
         if (EditorState.EditingSelectedPaths && (EditorState.SelectedItems.Count != 1 || !(EditorState.SelectedItems.FirstOrDefault() is SvgPathItem)))
         {            
             StateHasChanged();

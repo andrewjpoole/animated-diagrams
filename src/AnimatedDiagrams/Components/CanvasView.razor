@@ -1,3 +1,4 @@
+@using AnimatedDiagrams.PathGeometry
 @using AnimatedDiagrams.Models
 @using AnimatedDiagrams.PathGeometry
 @using AnimatedDiagrams.Services
@@ -169,7 +170,7 @@
     private (double x, double y)? _dragEnd;
     private bool _dragMovingPaths = false;
     private (double x, double y)? _dragMoveStart;
-    private Dictionary<SvgPathItem, List<(double x, double y)>>? _dragMoveOriginalPoints;
+    private Dictionary<SvgPathItem, string>? _dragMoveOriginalD;
     private bool _pendingCircle = false;
 
     // Throttle drag-select selection logic
@@ -349,11 +350,10 @@
                 {
                     _dragMovingPaths = true;
                     _dragMoveStart = svgHitPoint;
-                    _dragMoveOriginalPoints = new Dictionary<SvgPathItem, List<(double x, double y)>>();
+                    _dragMoveOriginalD = new Dictionary<SvgPathItem, string>();
                     foreach (var path in Editor.SelectedItems.OfType<SvgPathItem>())
                     {
-                        var pts = Path.GetPoints(path);
-                        _dragMoveOriginalPoints[path] = pts;
+                        _dragMoveOriginalD[path] = path.D;
                     }
                     // Store original positions for circles
                     _dragMoveOriginalCircles = new Dictionary<SvgCircleItem, (double cx, double cy)>();
@@ -506,18 +506,18 @@
         sw.Stop();
         Console.WriteLine($"[Perf] PointerMove (other) took {sw.Elapsed.TotalMilliseconds:F1} ms");
         
-        if (_dragMovingPaths && _dragMoveStart.HasValue && _dragMoveOriginalPoints != null)
+    if (_dragMovingPaths && _dragMoveStart.HasValue && _dragMoveOriginalD != null)
         {
             var svgHitPoint = ToSvgFromEvent(e);
             var (startX, startY) = _dragMoveStart.Value;
             var dx = svgHitPoint.x - startX;
             var dy = svgHitPoint.y - startY;
-            foreach (var kvp in _dragMoveOriginalPoints)
+            foreach (var kvp in _dragMoveOriginalD)
             {
                 var path = kvp.Key;
-                var origPts = kvp.Value;
-                var movedPts = origPts.Select(pt => (pt.x + dx, pt.y + dy)).ToList();
-                path.D = SmoothingStrategies.Linear(movedPts);
+                var origD = kvp.Value;
+                // Always move from the original D, not the current D
+                path.D = Path.MovePathBy(origD, dx, dy);
             }
             
             if (_dragMoveOriginalCircles != null)
@@ -652,9 +652,9 @@
         if (_dragMovingPaths)
         {
             // Update bounds and cache for all moved paths
-            if (_dragMoveOriginalPoints != null)
+            if (_dragMoveOriginalD != null)
             {
-                foreach (var path in _dragMoveOriginalPoints.Keys)
+                foreach (var path in _dragMoveOriginalD.Keys)
                 {
                     path.Bounds = Path.GetBounds(path.D);
                     Editor.LocationCache?.AddOrUpdate(path);
@@ -662,7 +662,7 @@
             }
             _dragMovingPaths = false;
             _dragMoveStart = null;
-            _dragMoveOriginalPoints = null;
+            _dragMoveOriginalD = null;
             _dragMoveOriginalCircles = null;
             // Push state for undo/redo
             UndoRedo.PushState(StateSnapshot());

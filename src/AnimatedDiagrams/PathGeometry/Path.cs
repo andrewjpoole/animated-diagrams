@@ -414,8 +414,8 @@ public static class Path
             }
             prevCmd = cmd;
         }
-        if (minX == double.MaxValue) minX = minY = maxX = maxY = 0;
-        Console.WriteLine($"[Debug] GetBounds: d=\"{d}\" coords=[{string.Join(", ", coords.Select(c => $"({c.x},{c.y})"))}] bounds=({minX},{minY},{maxX-minX},{maxY-minY})");
+        if (minX == double.MaxValue)
+            minX = minY = maxX = maxY = 0;
         return (minX, minY, maxX - minX, maxY - minY);
     }
 
@@ -893,7 +893,6 @@ public static class Path
             var b = path.Bounds.Value;
             if (b.x > maxX || b.x + b.w < minX || b.y > maxY || b.y + b.h < minY)
             {
-                Console.WriteLine($"[Debug] IntersectsRect: Path {path.Id} bounds=({b.x},{b.y},{b.w},{b.h}) does not intersect rect=({minX},{minY},{maxX},{maxY})");
                 return false;
             }
         }        
@@ -919,13 +918,11 @@ public static class Path
                 {
                     if (px >= minX && px <= maxX && py >= minY && py <= maxY)
                     {
-                        Console.WriteLine($"[Debug] IntersectsRect: Path {path.Id} point=({px},{py}) is inside rect=({minX},{minY},{maxX},{maxY})");
                         return true;
                     }
                 }
             }
         }
-        Console.WriteLine($"[Debug] IntersectsRect: Path {path.Id} does not intersect rect=({minX},{minY},{maxX},{maxY})");
         return false;
     }
 

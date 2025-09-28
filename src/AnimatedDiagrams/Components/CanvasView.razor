@@ -629,7 +629,6 @@
             {
                 // Log selected testPath ids for diagnosis (now finalized)
                 var selectedTestIds = Editor.SelectedItems.Select(i => i.Id).Where(id => id.StartsWith("test-path-")).ToList();
-                Console.WriteLine($"DragSelect items: {string.Join(", ", selectedTestIds)}");
             }
             _dragSelecting = false;
             _dragStart = null;
@@ -644,8 +643,6 @@
             var svgHitPoint = ToSvgFromEvent(e);
             var hitIds = Editor.LocationCache?.GetItemsAt(svgHitPoint.x, svgHitPoint.y) ?? Array.Empty<string>();
             var hitTestIds = hitIds.Where(id => id.StartsWith("test-path-")).ToList();
-            Console.WriteLine($"SingleClick: x={svgHitPoint.x:F1} y={svgHitPoint.y:F1}");
-            Console.WriteLine($"SingleClick items: {string.Join(", ", hitTestIds)}");
         }        
 
         // End multi-shape drag-move

@@ -17,6 +17,38 @@ public class PathEditorState
     // Item location cache for fast selection
     public ItemLocationCache? LocationCache { get; private set; }
 
+    /// <summary>
+    /// The index in the Items list where new paths will be inserted. Defaults to end of list.
+    /// </summary>
+    public int InsertPosition { get; private set; } = -1; // -1 means end of list
+
+    public void SetInsertPosition(int index)
+    {
+        if (index < 0 || index > Items.Count) InsertPosition = -1;
+        else InsertPosition = index;
+        Changed?.Invoke();
+    }
+
+    public void ResetInsertPosition()
+    {
+        InsertPosition = -1;
+        Changed?.Invoke();
+    }
+
+    public void MoveInsertPosition(int delta)
+    {
+        int newPos = InsertPosition;
+        if (InsertPosition < 0) newPos = Items.Count;
+        newPos = Math.Clamp(newPos + delta, 0, Items.Count);
+        InsertPosition = newPos;
+        Changed?.Invoke();
+    }
+
+    public int GetInsertIndex()
+    {
+        return InsertPosition < 0 ? Items.Count : InsertPosition;
+    }
+
     public void InitLocationCache(int gridX, int gridY, double canvasWidth, double canvasHeight)
     {
         LocationCache = new ItemLocationCache(gridX, gridY, canvasWidth, canvasHeight);
@@ -100,29 +132,41 @@ public class PathEditorState
         Changed?.Invoke();
     }
 
+
     public void Add(PathItem item)
     {
-        Items.Add(item);
+        int idx = GetInsertIndex();
+        if (idx < 0 || idx > Items.Count) idx = Items.Count;
+        Items.Insert(idx, item);
         if (item is SvgPathItem p)
         {
             p.Bounds = AnimatedDiagrams.PathGeometry.Path.GetBounds(p.D);
         }
         LocationCache?.AddOrUpdate(item);
+        // If insert position is not at end, move it after the inserted item
+        if (InsertPosition >= 0) InsertPosition++;
         MarkDirty();
     }
 
     public void Add(SvgPathItem item)
     {
         item.Bounds = AnimatedDiagrams.PathGeometry.Path.GetBounds(item.D);
-        Items.Add(item);
+        int idx = GetInsertIndex();
+        if (idx < 0 || idx > Items.Count) idx = Items.Count;
+        Items.Insert(idx, item);
         LocationCache?.AddOrUpdate(item);
+        // If insert position is not at end, move it after the inserted item
+        if (InsertPosition >= 0) InsertPosition++;
         MarkDirty();
     }
 
     public void Add(SvgCircleItem item)
     {
-        Items.Add(item);
+        int idx = GetInsertIndex();
+        if (idx < 0 || idx > Items.Count) idx = Items.Count;
+        Items.Insert(idx, item);
         LocationCache?.AddOrUpdate(item);
+        if (InsertPosition >= 0) InsertPosition++;
         MarkDirty();
     }
 

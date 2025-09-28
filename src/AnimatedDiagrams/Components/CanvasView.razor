@@ -1,4 +1,4 @@
-@using AnimatedDiagrams.PathGeometry
+    
 @using AnimatedDiagrams.Models
 @using AnimatedDiagrams.PathGeometry
 @using AnimatedDiagrams.Services
@@ -7,9 +7,6 @@
 @inject PensService PensService
 
 <div class="canvas-wrapper" tabindex="0" @ref="_canvasWrapper" autofocus @onwheel="OnWheel"
-    @onpointerdown="PointerDown" @onpointerdown:preventDefault
-    @onpointermove="PointerMove" @onpointermove:preventDefault
-    @onpointerup="PointerUp" @onpointerup:preventDefault
     style="background:@CanvasBgColor">
     <div class="canvas-toolbar">
     
@@ -39,7 +36,11 @@
         }
     </div>
     <svg @ref="_svg" class="diagram-canvas" width="100%" height="100%" viewBox="0 0 2000 1200"
-    style="cursor:@(Editor.Mode == EditorMode.Drawing ? "crosshair" : "default")">
+    style="cursor:@(Editor.Mode == EditorMode.Drawing ? "crosshair" : "default")"
+    @onpointerdown="PointerDown"
+    @onpointermove="PointerMove"
+    @onpointerup="PointerUp"
+    @onpointerleave="PointerLeave">
         <g transform="matrix(@Editor.Zoom 0 0 @Editor.Zoom @Editor.OffsetX @Editor.OffsetY)">
         }
         @* Render random rectangle for debug (must be direct child of <svg>) *@
@@ -704,6 +705,26 @@
             _activePath = null;
         }
         _pendingCircle = false;
+    }
+
+    void PointerLeave(PointerEventArgs e)
+    {
+        // End drag-select or drag-move if pointer leaves the canvas
+        if (_dragSelecting)
+        {
+            _dragSelecting = false;
+            _dragStart = null;
+            _dragEnd = null;
+            StateHasChanged();
+        }
+        if (_dragMovingPaths)
+        {
+            _dragMovingPaths = false;
+            _dragMoveStart = null;
+            _dragMoveOriginalD = null;
+            _dragMoveOriginalCircles = null;
+            StateHasChanged();
+        }
     }
 
     (double x, double y) ToSvgFromEvent(PointerEventArgs e)

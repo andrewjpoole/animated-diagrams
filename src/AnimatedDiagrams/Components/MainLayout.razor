@@ -47,7 +47,7 @@
     {
         var drawKey = SettingsSvc.Settings.SelectDrawToggleKey ?? "d";
         var selectKey = SettingsSvc.Settings.SelectModeKey ?? "s";
-        
+
         if (string.Equals(e.Key, selectKey, StringComparison.OrdinalIgnoreCase))
         {
             Editor.SetMode(EditorMode.Select);
@@ -116,6 +116,13 @@
         else if (e.Key == "Delete")
         {
             Editor.DeleteSelected();
+        }
+
+        // Selection navigation (left/right arrows)
+        if (Editor.Mode == EditorMode.Select && (e.Key == "ArrowLeft" || e.Key == "ArrowRight"))
+        {
+            Editor.NavigateSelection(e.Key, e.CtrlKey, e.ShiftKey);
+            return;
         }
     }
 }

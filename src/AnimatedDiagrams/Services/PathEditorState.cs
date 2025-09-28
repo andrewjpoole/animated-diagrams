@@ -66,6 +66,82 @@ public class PathEditorState
         this.settingsService = settingsService;
     }
 
+    /// <summary>
+    /// Keyboard navigation for selection: left/right and ctrl+left/right.
+    /// </summary>
+    public void NavigateSelection(string key, bool ctrl, bool shift)
+    {
+        if (Mode != EditorMode.Select || Items.Count == 0 || SelectedItems.Count == 0) return;
+        var selected = SelectedItems.ToList();
+        int firstIdx = Items.IndexOf(selected.First());
+        int lastIdx = Items.IndexOf(selected.Last());
+
+        if (key == "ArrowRight")
+        {
+            if (ctrl)
+            {
+                // Ctrl+Right: Remove one from the beginning
+                if (selected.Count > 1)
+                {
+                    selected.RemoveAt(0);
+                    SelectMultiple(selected);
+                }
+            }
+            else if (shift)
+            {
+                // Shift+Right: Add next item to the end
+                if (lastIdx < Items.Count - 1 && !selected.Contains(Items[lastIdx + 1]))
+                {
+                    selected.Add(Items[lastIdx + 1]);
+                    SelectMultiple(selected);
+                }
+            }
+            else
+            {
+                // ArrowRight: Move selection window right by one
+                if (lastIdx < Items.Count - 1)
+                {
+                    firstIdx++;
+                    lastIdx++;
+                    var newSelection = Items.GetRange(firstIdx, lastIdx - firstIdx + 1);
+                    SelectMultiple(newSelection);
+                }
+            }
+        }
+        else if (key == "ArrowLeft")
+        {
+            if (ctrl)
+            {
+                // Ctrl+Left: Remove one from the end
+                if (selected.Count > 1)
+                {
+                    selected.RemoveAt(selected.Count - 1);
+                    SelectMultiple(selected);
+                }
+            }
+            else if (shift)
+            {
+                // Shift+Left: Add previous item to the beginning
+                if (firstIdx > 0 && !selected.Contains(Items[firstIdx - 1]))
+                {
+                    selected.Insert(0, Items[firstIdx - 1]);
+                    SelectMultiple(selected);
+                }
+            }
+            else
+            {
+                // ArrowLeft: Move selection window left by one
+                if (firstIdx > 0)
+                {
+                    firstIdx--;
+                    lastIdx--;
+                    var newSelection = Items.GetRange(firstIdx, lastIdx - firstIdx + 1);
+                    SelectMultiple(newSelection);
+                }
+            }
+        }
+    }
+
     public void ResetViewport()
     {
         SetViewport(1.0, 0, 0);

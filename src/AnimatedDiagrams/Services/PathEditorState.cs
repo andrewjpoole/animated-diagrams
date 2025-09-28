@@ -14,6 +14,20 @@ public enum EditorMode
 
 public class PathEditorState
 {
+    public StyleRuleService? StyleRuleService { get; set; }
+
+    /// <summary>
+    /// Applies all style rules to all items in the editor.
+    /// </summary>
+    public void ApplyAllStyleRules()
+    {
+        if (StyleRuleService == null) return;
+        foreach (var item in Items)
+        {
+            StyleRuleService.Apply(item);
+        }
+        Changed?.Invoke();
+    }
     // Item location cache for fast selection
     public ItemLocationCache? LocationCache { get; private set; }
 

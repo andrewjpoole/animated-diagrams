@@ -5,13 +5,13 @@
 <div class="animation-recording-panel">
     <h3>Animation & Recording</h3>
     <label style="display:flex;align-items:center;gap:10px;">Duration (ms)
-        <input type="range" min="20" max="2000" step="10" style="width:180px;" @bind="AnimationSpeed" />
+        <input type="range" min="20" max="2000" step="10" style="width:160px;" @bind="AnimationSpeed" />
         <input type="number" min="20" max="2000" step="1" style="width:70px;" @bind="AnimationSpeed" />
     </label>
     <div style="margin-bottom:12px;">
-        <button class="app-btn" @onclick="Play">Start Animation</button>
-        <button class="app-btn" @onclick="Reset">Reset</button>
-        <button class="app-btn" @onclick="ShowAll">Show All</button>
+        <button class="app-btn" @onclick="Play" title="Start Animation">▶️</button>
+        <button class="app-btn" @onclick="Reset" title="Reset Animation">⏹️</button>
+        <button class="app-btn" @onclick="ShowAll" title="Show All">⏭️</button>
     </div>
     <h4>Recording</h4>
     @if (!editingRecordingSettings)
@@ -22,7 +22,7 @@
             <div>Thumbnail Start: @(Options.InsertInitialThumbnail ? "Yes" : "No")</div>
             <div>Pre Blank (ms): @Options.PreAnimationBlankMs</div>
             <div style="display:flex;gap:8px;margin-top:6px;">
-                <button class="app-btn" @onclick="StartRecording">Record</button>
+                <button class="app-btn" @onclick="StartRecording" title="Record animation to webm video file">📽️</button>
                 <button class="app-btn" @onclick="() => StartEditRecordingSettings()" title="Edit recording settings">✎</button>
             </div>
         </div>

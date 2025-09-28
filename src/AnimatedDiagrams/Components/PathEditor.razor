@@ -8,8 +8,8 @@
 
 <div class="path-editor" style="display:flex;flex-direction:column;height:calc(100% - 12px);min-height:0;">
     <div class="toolbar" style="flex:0 0 auto;">
-        <button class="app-btn" @onclick="AddPause" title="Add a pause when animating">⏸️ Pause</button>
-        <button class="app-btn" @onclick="AddSpeed" title="Add a speed change when animating">⏩ Speed</button>
+        <button class="app-btn" @onclick="AddPause" title="Insert a pause for animating">⏸️</button>
+        <button class="app-btn" @onclick="AddSpeed" title="Insert a speed change for animating">⏩</button>
         @if(!string.IsNullOrEmpty(_exportMessage))
         {
             <span class="export-status">@_exportMessage</span>
@@ -139,11 +139,11 @@
             />
         }
         <div class="path-editor-actions" style="margin-top:12px;display:flex;gap:8px;">
-    <button class="app-btn" @onclick="InsertAfterSelected" title="Insert after selected item">↩️</button>
-            <button class="app-btn" @onclick="MoveSelectedUp" disabled="@(EditorState.SelectedItems.Count == 0)" title="Move up">▲</button>
-            <button class="app-btn" @onclick="MoveSelectedDown" disabled="@(EditorState.SelectedItems.Count == 0)" title="Move down">▼</button>
-            <button class="app-btn" @onclick="EditNodes" disabled="@(EditorState.SelectedItems.Count != 1 || !(EditorState.SelectedItems.FirstOrDefault() is SvgPathItem))" title="Edit nodes">🔧</button>
-            <button class="app-btn" @onclick="SimplifySelectedItems" disabled="@(EditorState.SelectedItems.Count == 0)" title="Simplify">♻️</button>
+            <button class="app-btn" @onclick="InsertAfterSelected" title="Reset Insert Position for new items, after selected item">↩️</button>
+            <button class="app-btn" @onclick="MoveSelectedUp" disabled="@(EditorState.SelectedItems.Count == 0)" title="Move selected item(s) up">▲</button>
+            <button class="app-btn" @onclick="MoveSelectedDown" disabled="@(EditorState.SelectedItems.Count == 0)" title="Move selected item(s) down">▼</button>
+            <button class="app-btn" @onclick="EditNodes" disabled="@(EditorState.SelectedItems.Count != 1 || !(EditorState.SelectedItems.FirstOrDefault() is SvgPathItem))" title="Edit selected item nodes">🔧</button>
+            <button class="app-btn" @onclick="SimplifySelectedItems" disabled="@(EditorState.SelectedItems.Count == 0)" title="Simplify selected item path">♻️</button>
         </div>
     </div>
 </div>

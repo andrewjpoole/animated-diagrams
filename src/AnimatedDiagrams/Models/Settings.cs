@@ -40,7 +40,7 @@ public class RecordingOptions
     public int Fps { get; set; } = 30;
     public int Width { get; set; } = 1920;
     public int Height { get; set; } = 1080;
-    public int Quality { get; set; } = 90; // bitrate quality for video encoding
+    public int Quality { get; set; } = 25000; // bitrate quality for video encoding
     public int EndPauseMs { get; set; } = 1000;
     public bool InsertInitialThumbnail { get; set; } = true;
     public int PreAnimationBlankMs { get; set; } = 500;

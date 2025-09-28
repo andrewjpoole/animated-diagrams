@@ -2,10 +2,10 @@
 @inject SvgFileService Svg
 @inject IJSRuntime JS
 <div class="file-controls">
-    <button class="app-btn" @onclick="NewFile">New</button>
+    <button class="app-btn" @onclick="NewFile" title="Create a new file">🆕</button>
     <input type="file" @ref="_fileInput" @onchange="OnFile" accept=".svg" style="display:none" />
-    <button class="app-btn" @onclick="TriggerImport">Import</button>
-    <button class="app-btn" @onclick="Export">Export</button>
+    <button class="app-btn" @onclick="TriggerImport" title="Import an existing svg file">📥</button>
+    <button class="app-btn" @onclick="Export" title="Export the current svg file">📤</button>
     <div style="margin-top:8px;">
         @if (_editingName)
         {
@@ -16,7 +16,7 @@
         else
         {
             <span style="font-weight:500; margin-right:8px;">@Editor.DiagramName</span>
-            <button class="app-btn" @onclick="EditDiagramName" title="Edit"><span style="font-size:1.2em;">✎</span></button>
+            <button class="app-btn" @onclick="EditDiagramName" title="Edit file name"><span style="font-size:1.2em;">✎</span></button>
         }
     </div>
 

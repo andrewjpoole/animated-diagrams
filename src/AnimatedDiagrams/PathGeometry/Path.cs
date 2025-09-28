@@ -45,7 +45,7 @@ public static class Path
             sb.Append(cmd);
             switch (absCmd)
             {
-                case 'M':
+                case 'M': // moveto
                     while (n + 1 < nums.Count)
                     {
                         double x = nums[n], y = nums[n + 1];
@@ -73,8 +73,8 @@ public static class Path
                         absCmd = 'L';
                     }
                     break;
-                case 'L':
-                case 'T':
+                case 'L': // lineto
+                case 'T': // smooth quadratic curveto
                     while (n + 1 < nums.Count)
                     {
                         double x = nums[n], y = nums[n + 1];
@@ -93,7 +93,7 @@ public static class Path
                         if (n + 1 < nums.Count) sb.Append(" ");
                     }
                     break;
-                case 'H':
+                case 'H': // horizontal lineto
                     while (n < nums.Count)
                     {
                         double x = nums[n];
@@ -112,7 +112,7 @@ public static class Path
                         if (n < nums.Count) sb.Append(" ");
                     }
                     break;
-                case 'V':
+                case 'V': // vertical lineto
                     while (n < nums.Count)
                     {
                         double y = nums[n];
@@ -131,7 +131,7 @@ public static class Path
                         if (n < nums.Count) sb.Append(" ");
                     }
                     break;
-                case 'C':
+                case 'C': // cubic Bezier curveto
                     while (n + 5 < nums.Count)
                     {
                         double x1 = nums[n], y1 = nums[n + 1], x2 = nums[n + 2], y2 = nums[n + 3], x = nums[n + 4], y = nums[n + 5];
@@ -150,7 +150,7 @@ public static class Path
                         if (n + 5 < nums.Count) sb.Append(" ");
                     }
                     break;
-                case 'S':
+                case 'S': // smooth cubic Bezier curveto
                     while (n + 3 < nums.Count)
                     {
                         double x2 = nums[n], y2 = nums[n + 1], x = nums[n + 2], y = nums[n + 3];
@@ -169,7 +169,7 @@ public static class Path
                         if (n + 3 < nums.Count) sb.Append(" ");
                     }
                     break;
-                case 'Q':
+                case 'Q': // quadratic Bezier curveto
                     while (n + 3 < nums.Count)
                     {
                         double x1 = nums[n], y1 = nums[n + 1], x = nums[n + 2], y = nums[n + 3];
@@ -188,7 +188,7 @@ public static class Path
                         if (n + 3 < nums.Count) sb.Append(" ");
                     }
                     break;
-                case 'A':
+                case 'A': // elliptical arc
                     while (n + 6 < nums.Count)
                     {
                         double rx = nums[n], ry = nums[n + 1], angle = nums[n + 2], laf = nums[n + 3], sf = nums[n + 4], x = nums[n + 5], y = nums[n + 6];
@@ -207,7 +207,7 @@ public static class Path
                         if (n + 6 < nums.Count) sb.Append(" ");
                     }
                     break;
-                case 'Z':
+                case 'Z': // closepath
                     sb.Append("");
                     cx = subpathStartX; cy = subpathStartY;
                     break;
@@ -253,7 +253,7 @@ public static class Path
             int n = 0;
             switch (char.ToUpper(cmd))
             {
-                case 'M':
+                case 'M': // moveto
                     while (n + 1 < nums.Count)
                     {
                         double nx = nums[n], ny = nums[n + 1];
@@ -268,7 +268,7 @@ public static class Path
                         n += 2;
                     }
                     break;
-                case 'L':
+                case 'L': // lineto
                     while (n + 1 < nums.Count)
                     {
                         double nx = nums[n], ny = nums[n + 1];
@@ -282,7 +282,7 @@ public static class Path
                         n += 2;
                     }
                     break;
-                case 'H':
+                case 'H': // horizontal lineto
                     while (n < nums.Count)
                     {
                         double nx = nums[n];
@@ -294,7 +294,7 @@ public static class Path
                         n++;
                     }
                     break;
-                case 'V':
+                case 'V': // vertical lineto
                     while (n < nums.Count)
                     {
                         double ny = nums[n];
@@ -306,7 +306,7 @@ public static class Path
                         n++;
                     }
                     break;
-                case 'C':
+                case 'C': // cubic Bezier curveto
                     while (n + 5 < nums.Count)
                     {
                         double x1 = nums[n], y1 = nums[n + 1], x2 = nums[n + 2], y2 = nums[n + 3], x3 = nums[n + 4], y3 = nums[n + 5];
@@ -325,7 +325,7 @@ public static class Path
                         n += 6;
                     }
                     break;
-                case 'S':
+                case 'S': // smooth cubic Bezier curveto
                     while (n + 3 < nums.Count)
                     {
                         double x2 = nums[n], y2 = nums[n + 1], x3 = nums[n + 2], y3 = nums[n + 3];
@@ -349,7 +349,7 @@ public static class Path
                         n += 4;
                     }
                     break;
-                case 'Q':
+                case 'Q': // quadratic Bezier curveto
                     while (n + 3 < nums.Count)
                     {
                         double x1 = nums[n], y1 = nums[n + 1], x2 = nums[n + 2], y2 = nums[n + 3];
@@ -367,7 +367,7 @@ public static class Path
                         n += 4;
                     }
                     break;
-                case 'T':
+                case 'T': // smooth quadratic curveto
                     while (n + 1 < nums.Count)
                     {
                         double x1 = cx, y1 = cy;
@@ -388,7 +388,7 @@ public static class Path
                         n += 2;
                     }
                     break;
-                case 'A':
+                case 'A': // elliptical arc
                     while (n + 6 < nums.Count)
                     {
                         double rx = nums[n], ry = nums[n + 1], angle = nums[n + 2], largeArc = nums[n + 3], sweep = nums[n + 4], x2 = nums[n + 5], y2 = nums[n + 6];
@@ -403,7 +403,7 @@ public static class Path
                         n += 7;
                     }
                     break;
-                case 'Z':
+                case 'Z': // closepath
                     cx = startX; cy = startY;
                     coords.Add((cx, cy));
                     minX = Math.Min(minX, cx);
@@ -454,7 +454,7 @@ public static class Path
             int n = 0;
             switch (char.ToUpper(cmd))
             {
-                case 'M':
+                case 'M': // moveto
                     while (n + 1 < nums.Count)
                     {
                         double nx = nums[n], ny = nums[n + 1];
@@ -464,7 +464,7 @@ public static class Path
                         n += 2;
                     }
                     break;
-                case 'L':
+                case 'L': // lineto
                     while (n + 1 < nums.Count)
                     {
                         double nx = nums[n], ny = nums[n + 1];
@@ -475,7 +475,7 @@ public static class Path
                         n += 2;
                     }
                     break;
-                case 'H':
+                case 'H': // horizontal lineto
                     while (n < nums.Count)
                     {
                         double nx = nums[n];
@@ -486,7 +486,7 @@ public static class Path
                         n++;
                     }
                     break;
-                case 'V':
+                case 'V': // vertical lineto
                     while (n < nums.Count)
                     {
                         double ny = nums[n];
@@ -497,7 +497,7 @@ public static class Path
                         n++;
                     }
                     break;
-                case 'C':
+                case 'C': // cubic Bezier curveto
                     while (n + 5 < nums.Count)
                     {
                         double x1 = nums[n], y1 = nums[n + 1], x2 = nums[n + 2], y2 = nums[n + 3], x3 = nums[n + 4], y3 = nums[n + 5];
@@ -520,7 +520,7 @@ public static class Path
                         n += 6;
                     }
                     break;
-                case 'S':
+                case 'S': // smooth cubic Bezier curveto
                     while (n + 3 < nums.Count)
                     {
                         double x2 = nums[n], y2 = nums[n + 1], x3 = nums[n + 2], y3 = nums[n + 3];
@@ -549,7 +549,7 @@ public static class Path
                         n += 4;
                     }
                     break;
-                case 'Q':
+                case 'Q': // quadratic Bezier curveto
                     while (n + 3 < nums.Count)
                     {
                         double x1 = nums[n], y1 = nums[n + 1], x2 = nums[n + 2], y2 = nums[n + 3];
@@ -572,7 +572,7 @@ public static class Path
                         n += 4;
                     }
                     break;
-                case 'T':
+                case 'T': // smooth quadratic curveto
                     while (n + 1 < nums.Count)
                     {
                         double x1 = cx, y1 = cy;
@@ -598,7 +598,7 @@ public static class Path
                         n += 2;
                     }
                     break;
-                case 'A':
+                case 'A': // elliptical arc
                     while (n + 6 < nums.Count)
                     {
                         double rx = nums[n], ry = nums[n + 1], angle = nums[n + 2], largeArc = nums[n + 3], sweep = nums[n + 4], x2 = nums[n + 5], y2 = nums[n + 6];
@@ -658,7 +658,7 @@ public static class Path
             }
             return pts;
         }
-                case 'Z':
+                case 'Z': // closepath
                     var distZ = DistanceToSegment(x, y, cx, cy, startX, startY);
                     if (distZ < threshold) return true;
                     cx = startX; cy = startY;

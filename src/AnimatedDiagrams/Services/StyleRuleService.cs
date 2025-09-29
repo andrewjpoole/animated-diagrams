@@ -7,6 +7,7 @@ public class StyleRuleService
 {
     private const string StorageKey = "style-rules";
     private readonly ILocalStorage _localStorage;
+    private PathEditorState? _editor;
     public List<StyleRule> Rules { get; private set; } = new();
     public event Action? Changed;
 
@@ -14,6 +15,11 @@ public class StyleRuleService
     {
         _localStorage = localStorage;
         Load();
+    }
+
+    public void SetEditor(PathEditorState editor)
+    {
+        _editor = editor;
     }
 
     public void Add(StyleRule rule)
@@ -50,28 +56,51 @@ public class StyleRuleService
     {
         foreach (var c in rule.Conditions)
         {
-            double left = c.Field switch
+            switch (c.Field)
             {
-                StyleConditionField.StrokeWidth => path.StrokeWidth,
-                StyleConditionField.Opacity => path.Opacity,
-                StyleConditionField.StrokeOpacity => path.Opacity, // placeholder
-                StyleConditionField.PathLength => EstimatePathLength(path.D),
-                _ => 0
-            };
-            if (!Compare(left, c.Value, c.Comparison)) return false;
+                case StyleConditionField.StrokeWidth:
+                    if (!Compare(path.StrokeWidth, c.Value, c.Comparison)) return false;
+                    break;
+                case StyleConditionField.Opacity:
+                    if (!Compare(path.Opacity, c.Value, c.Comparison)) return false;
+                    break;
+                case StyleConditionField.StrokeOpacity:
+                    if (!Compare(path.Opacity, c.Value, c.Comparison)) return false; // placeholder
+                    break;
+                case StyleConditionField.PathLength:
+                    if (!Compare(EstimatePathLength(path.D), c.Value, c.Comparison)) return false;
+                    break;
+                case StyleConditionField.StrokeLineCap:
+                    if (!StringEquals(path.StrokeLineCap, c.Value)) return false;
+                    break;
+                case StyleConditionField.LineType:
+                    if (!StringEquals(path.LineType, c.Value)) return false;
+                    break;
+                case StyleConditionField.StrokeLineJoin:
+                    if (!StringEquals(path.StrokeLineJoin, c.Value)) return false;
+                    break;
+            }
         }
         return true;
     }
-
-    private static bool Compare(double left, double right, StyleComparison cmp) => cmp switch
+    private static bool StringEquals(string left, string right)
     {
-        StyleComparison.Equal => Math.Abs(left - right) < 0.0001,
-        StyleComparison.Less => left < right,
-        StyleComparison.Greater => left > right,
-        StyleComparison.LessOrEqual => left <= right,
-        StyleComparison.GreaterOrEqual => left >= right,
-        _ => false
-    };
+        return string.Equals(left?.Trim(), right?.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool Compare(double left, string rightStr, StyleComparison cmp)
+    {
+        if (!double.TryParse(rightStr, out var right)) return false;
+        return cmp switch
+        {
+            StyleComparison.Equal => Math.Abs(left - right) < 0.0001,
+            StyleComparison.Less => left < right,
+            StyleComparison.Greater => left > right,
+            StyleComparison.LessOrEqual => left <= right,
+            StyleComparison.GreaterOrEqual => left >= right,
+            _ => false
+        };
+    }
 
     private double EstimatePathLength(string d)
     {
@@ -119,13 +148,22 @@ public class StyleRuleService
                 switch (a.Field)
                 {
                     case StyleActionField.StrokeWidth:
-                        p.StrokeWidth = a.Value;
+                        if (double.TryParse(a.Value, out var sw)) p.StrokeWidth = sw;
                         break;
                     case StyleActionField.Opacity:
-                        p.Opacity = a.Value;
+                        if (double.TryParse(a.Value, out var op)) p.Opacity = op;
                         break;
                     case StyleActionField.StrokeOpacity:
-                        p.Opacity = a.Value; // placeholder separate stroke opacity later
+                        if (double.TryParse(a.Value, out var sop)) p.Opacity = sop; // placeholder separate stroke opacity later
+                        break;
+                    case StyleActionField.StrokeLineCap:
+                        if (!string.IsNullOrWhiteSpace(a.Value)) p.StrokeLineCap = a.Value;
+                        break;
+                    case StyleActionField.LineType:
+                        if (!string.IsNullOrWhiteSpace(a.Value)) p.LineType = a.Value;
+                        break;
+                    case StyleActionField.StrokeLineJoin:
+                        if (!string.IsNullOrWhiteSpace(a.Value)) p.StrokeLineJoin = a.Value;
                         break;
                     case StyleActionField.AnimationSpeed:
                         // handled during animation
@@ -143,6 +181,11 @@ public class StyleRuleService
     {
         var matches = GetMatches(items, rule).ToList();
         foreach (var m in matches) m.Highlight = true;
+        // If _editor is set, clear selection and select matches
+        if (_editor != null)
+        {
+            _editor.SelectMultiple(matches);
+        }
         Changed?.Invoke();
         return matches;
     }

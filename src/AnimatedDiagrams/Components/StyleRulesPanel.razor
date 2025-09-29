@@ -2,82 +2,264 @@
 @inject StyleRuleService RuleService
 @inject PathEditorState Editor
 
-<div class="style-rules">
+<div class="style-rules" style="max-width: 100%; box-sizing: border-box;">
     <h3>Style Rules</h3>
-    <button class="app-btn" @onclick="AddRule">Add Rule</button>
-    <button class="app-btn" @onclick="ShowMatches" disabled="@(Selected==null)">Show Matches</button>
-    <button class="app-btn" @onclick="Duplicate" disabled="@(Selected==null)">Duplicate</button>
+    <button class="app-btn" @onclick="AddRule" title="Add a new style rule">➕</button>    
     <ul>
         @foreach (var r in RuleService.Rules)
         {
-            <li @onclick="()=> Select(r)" class="rule @(r==Selected?"sel":null)">
-                <input value="@r.Name" @onchange="e=> { r.Name = e.Value?.ToString()??r.Name; SaveRules(); }" />
-                <button class="app-btn" @onclick="(e)=> Delete(r)">✖</button>
+            <li class="rule @(r==Selected?"sel":null)" style="@(r==Selected ? "background: var(--active-bg);" : null); padding: 0.75rem 0.5rem; border-bottom: 1px solid #444;">
+                @if (Selected == r)
+                {
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem; width: 100%; max-width: 100%; box-sizing: border-box;">
+                        <div>
+                            <input value="@Selected.Name" @onchange="e=> { Selected.Name = e.Value?.ToString()??Selected.Name; StateHasChanged(); }" />
+                        </div>
+                        <div class="conditions">
+                            @foreach (var c in Selected.Conditions)
+                            {
+                                var i = Selected.Conditions.IndexOf(c);
+                                <div style="display: flex; align-items: flex-start; gap: 0.5rem; width: 100%; max-width: 100%; box-sizing: border-box; flex-wrap: wrap;">
+                                    <div style="padding-top: 0.25rem; min-width: 2.5em;">
+                                        @if (i > 0)
+                                        {
+                                            <label style="font-weight: bold;">And</label>
+                                        }
+                                        else
+                                        {
+                                            <label style="font-weight: bold;">If</label>
+                                        }
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; gap: 0.25rem; flex: 1; min-width: 0; max-width: 100%;">
+                                        <select @onchange="e=> { c.Field = Enum.Parse<StyleConditionField>(e.Value!.ToString()!); StateHasChanged(); }">
+                                            @foreach (var f in Enum.GetValues<StyleConditionField>())
+                                            {
+                                                <option selected="@(f==c.Field)">@f</option>
+                                            }
+                                        </select>
+                                        <select @onchange="e=> { c.Comparison = Enum.Parse<StyleComparison>(e.Value!.ToString()!); StateHasChanged(); }">
+                                            @foreach (var comp in Enum.GetValues<StyleComparison>())
+                                            {
+                                                <option selected="@(comp==c.Comparison)">@comp</option>
+                                            }
+                                        </select>
+                                        <div style="display: flex; align-items: center; gap: 0.25rem; width: 100%; max-width: 100%; flex-wrap: wrap;">
+                                            <input type="text" value="@c.Value" @onchange="e=> { c.Value = e.Value?.ToString() ?? string.Empty; StateHasChanged(); }" style="flex:1; min-width: 0; max-width: 100%;" />
+                                            <button class="app-btn" style="padding:2px 6px; flex-shrink:0;" @onclick="() => RemoveConditionById(c.Id)" title="Remove condition" disabled="@(Selected.Conditions.Count == 1)">✖</button>
+                                            <button class="app-btn" style="padding:2px 6px; flex-shrink:0;" @onclick="AddCondition" title="Add a new condition">➕</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                        <div class="actions">
+                                @foreach (var a in Selected.Actions)
+                                {
+                                    var i = Selected.Actions.IndexOf(a);
+                                    <div style="display: flex; align-items: flex-start; gap: 0.5rem; width: 100%;">
+                                        <div style="padding-top: 0.25rem; min-width: 2.5em;">
+                                            @if (i > 0)
+                                            {
+                                                <label style="font-weight: bold;">And</label>
+                                            }
+                                            else
+                                            {
+                                                <label style="font-weight: bold;">Then</label>
+                                            }
+                                        </div>
+                                        <div style="display: flex; flex-direction: column; gap: 0.25rem; flex: 1; min-width: 0; max-width: 100%;">
+                                            <select @onchange="e=> { a.Field = Enum.Parse<StyleActionField>(e.Value!.ToString()!); StateHasChanged(); }">
+                                                @foreach (var f in Enum.GetValues<StyleActionField>())
+                                                {
+                                                    <option selected="@(f==a.Field)">@f</option>
+                                                }
+                                            </select>
+                                            <div style="display: flex; align-items: center; gap: 0.25rem; width: 100%; max-width: 100%; flex-wrap: wrap;">
+                                                <input type="text" value="@a.Value" @onchange="e=> { a.Value = e.Value?.ToString() ?? string.Empty; StateHasChanged(); }" style="flex:1; min-width: 0; max-width: 100%;" />
+                                                <button class="app-btn" style="padding:2px 6px; flex-shrink:0;" @onclick="() => RemoveActionById(a.Id)" title="Remove action" disabled="@(Selected.Actions.Count == 1)">✖</button>
+                                                <button class="app-btn" style="padding:2px 6px; flex-shrink:0;" @onclick="AddAction" title="Add a new action">➕</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem;">
+                            <button class="app-btn" @onclick="SelectMatching" disabled="@(Selected==null)" title="Select matching elements">🔎</button>
+                            <button class="app-btn" @onclick="ApplyRule" disabled="@(Selected==null)" title="Apply this rule to matching elements">🎨</button>
+                            <button class="app-btn" @onclick="Duplicate" disabled="@(Selected==null)" title="Duplicate the selected rule">📄</button>
+                            <button class="app-btn" @onclick="(e)=> SaveChanges()" title="Save changes">✔</button>
+                            <button class="app-btn" @onclick="(e)=> CancelEditRule()" title="Cancel editing">✖</button>
+                        </div>
+    void ApplyRule()
+    {
+        if (Selected != null)
+        {
+            foreach (var item in Editor.Items)
+            {
+                if (item is SvgPathItem p && RuleService.GetMatches(new[] { p }, Selected).Any())
+                {
+                    RuleService.Apply(p);
+                }
+            }
+            Editor.NotifyStateChanged();
+        }
+    }
+                    </div>
+                }
+                else
+                {
+                    <label>@r.Name</label>
+                    <button class="app-btn" @onclick="(e)=> EditRule(r)" title="Edit this rule">✎</button>
+                    <button class="app-btn" @onclick="(e)=> Delete(r)" title="Delete this rule">✖</button>
+                }
             </li>
         }
-    </ul>
-    @if (Selected != null)
-    {
-        <div class="conditions">
-            <h4>Conditions</h4>
-            @foreach (var c in Selected.Conditions)
-            {
-                <div>
-                    <select @onchange="e=> { c.Field = Enum.Parse<StyleConditionField>(e.Value!.ToString()!); SaveRules(); }">
-                        @foreach (var f in Enum.GetValues<StyleConditionField>())
-                        {
-                            <option selected="@(f==c.Field)">@f</option>
-                        }
-                    </select>
-                    <select @onchange="e=> { c.Comparison = Enum.Parse<StyleComparison>(e.Value!.ToString()!); SaveRules(); }">
-                        @foreach (var comp in Enum.GetValues<StyleComparison>())
-                        {
-                            <option selected="@(comp==c.Comparison)">@comp</option>
-                        }
-                    </select>
-                    <input type="number" value="@c.Value" @onchange="e=> { c.Value = double.Parse(e.Value!.ToString()!); SaveRules(); }" />
-                </div>
-            }
-            <button class="app-btn" @onclick="AddCondition">+ Condition</button>
-        </div>
-        <div class="actions">
-            <h4>Actions</h4>
-            @foreach (var a in Selected.Actions)
-            {
-                <div>
-                    <select @onchange="e=> { a.Field = Enum.Parse<StyleActionField>(e.Value!.ToString()!); SaveRules(); }">
-                        @foreach (var f in Enum.GetValues<StyleActionField>())
-                        {
-                            <option selected="@(f==a.Field)">@f</option>
-                        }
-                    </select>
-                    <input type="number" value="@a.Value" @onchange="e=> { a.Value = double.Parse(e.Value!.ToString()!); SaveRules(); }" />
-                </div>
-            }
-            <button class="app-btn" @onclick="AddAction">+ Action</button>
-        </div>
-    }
+    </ul>   
 </div>
 
 @code {
+    protected override void OnInitialized()
+    {
+        RuleService.SetEditor(Editor);
+        base.OnInitialized();
+    }
     private StyleRule? Selected;
 
     void AddRule()
     {
-        var rule = new StyleRule{ Name = "Rule " + (RuleService.Rules.Count+1) };
+        var rule = new StyleRule
+        {
+            Name = "Rule " + (RuleService.Rules.Count + 1),
+            Conditions = new List<StyleRuleCondition> { new StyleRuleCondition() },
+            Actions = new List<StyleRuleAction> { new StyleRuleAction() }
+        };
         RuleService.Add(rule);
         Selected = rule;
     }
+
     void Delete(StyleRule r)
     {
         RuleService.Delete(r);
         if (Selected == r) Selected = null;
     }
-    void Select(StyleRule r) { Selected = r; ClearHighlights(); }
-    void Duplicate(){ if (Selected!=null) RuleService.Duplicate(Selected); }
-    void AddCondition(){ if (Selected!=null){ Selected.Conditions.Add(new StyleRuleCondition()); SaveRules(); } }
-    void AddAction(){ if (Selected!=null){ Selected.Actions.Add(new StyleRuleAction()); SaveRules(); } }
-    void SaveRules() => RuleService.SaveRules();
-    void ShowMatches(){ if (Selected!=null){ ClearHighlights(); RuleService.HighlightMatches(Editor.Items, Selected); } }
-    void ClearHighlights(){ foreach(var i in Editor.Items) i.Highlight=false; }
+
+    void Select(StyleRule r) 
+    { 
+        Selected = r; ClearHighlights(); 
+    }
+
+    void EditRule(StyleRule r) 
+    { 
+        Selected = r; 
+    }
+
+    void CancelEditRule() { Selected = null; }
+
+    void Duplicate()
+    { 
+        if (Selected!=null) 
+        RuleService.Duplicate(Selected); 
+    }
+
+    void AddCondition()
+    {
+        if (Selected != null)
+        {
+            var rule = RuleService.Rules.FirstOrDefault(r => r.Id == Selected.Id);
+            rule?.Conditions.Add(new StyleRuleCondition());
+            Selected = rule;
+            StateHasChanged();
+        }
+    }
+
+    void AddAction()
+    {
+        if (Selected != null)
+        {
+            var rule = RuleService.Rules.FirstOrDefault(r => r.Id == Selected.Id);
+            rule?.Actions.Add(new StyleRuleAction());
+            Selected = rule;
+            StateHasChanged();
+        }
+    }
+
+    void RemoveConditionById(Guid id)
+    {
+        if (Selected != null)
+        {
+            var rule = RuleService.Rules.FirstOrDefault(r => r.Id == Selected.Id);
+            if (rule != null)
+            {
+                var idx = rule.Conditions.FindIndex(c => c.Id == id);
+                if (idx >= 0)
+                {
+                    if (rule.Conditions.Count == 1)
+                        rule.Conditions[0] = new StyleRuleCondition();
+                    else
+                        rule.Conditions.RemoveAt(idx);
+                    Selected = rule;
+                    StateHasChanged();
+                }
+            }
+        }
+    }
+
+    void RemoveActionById(Guid id)
+    {
+        if (Selected != null)
+        {
+            var rule = RuleService.Rules.FirstOrDefault(r => r.Id == Selected.Id);
+            if (rule != null)
+            {
+                var idx = rule.Actions.FindIndex(a => a.Id == id);
+                if (idx >= 0)
+                {
+                    if (rule.Actions.Count == 1)
+                        rule.Actions[0] = new StyleRuleAction();
+                    else
+                        rule.Actions.RemoveAt(idx);
+                    Selected = rule;
+                    StateHasChanged();
+                }
+            }
+        }
+    }
+
+    
+
+    void ApplyRule()
+    {
+        if (Selected != null)
+        {
+            foreach (var item in Editor.Items)
+            {
+                if (item is SvgPathItem p && RuleService.GetMatches(new[] { p }, Selected).Any())
+                {
+                    RuleService.Apply(p);
+                }
+            }
+            Editor.NotifyStateChanged();
+        }
+    }
+
+    void SaveChanges()
+    {
+        RuleService.SaveRules();
+        Selected = null;
+    }
+
+     void SelectMatching()
+     {
+            if (Selected!=null)
+            { 
+                ClearHighlights(); 
+                RuleService.HighlightMatches(Editor.Items, Selected); 
+            } 
+     }
+
+    void ClearHighlights()
+    { 
+        foreach(var i in Editor.Items) 
+            i.Highlight=false; 
+    }
 }

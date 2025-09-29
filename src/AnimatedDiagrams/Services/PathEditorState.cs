@@ -169,6 +169,10 @@ public class PathEditorState
     }
 
     public event Action? Changed;
+    public void NotifyStateChanged()
+    {
+        Changed?.Invoke();
+    }
     public List<PathItem> Items { get; } = new();
     public bool IsDirty { get; private set; }
     public List<PathItem> SelectedItems { get; private set; } = new();

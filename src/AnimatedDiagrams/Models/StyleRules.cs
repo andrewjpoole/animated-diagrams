@@ -5,7 +5,10 @@ public enum StyleConditionField
     StrokeWidth,
     Opacity,
     StrokeOpacity,
-    PathLength
+    PathLength,
+    StrokeLineCap,
+    LineType,
+    StrokeLineJoin
 }
 
 public enum StyleComparison
@@ -23,20 +26,26 @@ public enum StyleActionField
     Opacity,
     StrokeOpacity,
     GlowEffect,
-    AnimationSpeed
+    AnimationSpeed,
+    StrokeLineCap,
+    LineType,
+    StrokeLineJoin
 }
+
 
 public class StyleRuleCondition
 {
+    public Guid Id { get; set; } = Guid.NewGuid();
     public StyleConditionField Field { get; set; }
     public StyleComparison Comparison { get; set; }
-    public double Value { get; set; }
+    public string Value { get; set; } = string.Empty;
 }
 
 public class StyleRuleAction
 {
+    public Guid Id { get; set; } = Guid.NewGuid();
     public StyleActionField Field { get; set; }
-    public double Value { get; set; }
+    public string Value { get; set; } = string.Empty;
     public string? Extra { get; set; } // for glow color or multi-value
 }
 

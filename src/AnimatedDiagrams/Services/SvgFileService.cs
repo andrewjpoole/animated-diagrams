@@ -1,4 +1,3 @@
-using System.Text;
 using System.Xml.Linq;
 using AnimatedDiagrams.Models;
 
@@ -7,11 +6,9 @@ namespace AnimatedDiagrams.Services;
 public class SvgFileService
 {
     private readonly PathEditorState _editor;
-    private static SvgFileService? _lastInstance;
     public SvgFileService(PathEditorState editor)
     {
         _editor = editor;
-        _lastInstance = this;
     }
 
     public string ExportSvg()
@@ -222,41 +219,8 @@ public class SvgFileService
             // Now update UI/editor on main thread
             System.Threading.Tasks.Task.Run(() =>
             {
-                _editor.New();
-                _editor.InitLocationCache(grid, grid, canvasW, canvasH);
-                _editor.Items.AddRange(items);
-                _editor.LocationCache?.BuildBulk(items);
-                foreach (var comment in comments) ParseComment(comment.Value);
-                if (_editor.Items.Count > 0)
-                {
-                    _editor.SetViewport(zoom, offsetX, offsetY);
-                }
-                _editor.MarkSaved();
+                _editor.ImportSvgItems(items, comments, zoom, offsetX, offsetY, grid, grid, canvasW, canvasH);
             });
         });
-    }
-
-    private void ParseComment(string value)
-    {
-        if (value.StartsWith("Pause:", StringComparison.OrdinalIgnoreCase))
-        {
-            if (int.TryParse(value.Substring(6), out var ms))
-            {
-                _editor.Add(new PauseHintItem { Milliseconds = ms });
-            }
-        }
-        else if (value.StartsWith("Speed:", StringComparison.OrdinalIgnoreCase))
-        {
-            if (double.TryParse(value.Substring(6), out var mult))
-            {
-                _editor.Add(new SpeedHintItem { Multiplier = mult });
-            }
-        }
-    }
-
-    [Microsoft.JSInterop.JSInvokable("TestForceExport")] 
-    public static string TestForceExport()
-    {
-        return _lastInstance?.ExportSvg() ?? string.Empty;
     }
 }

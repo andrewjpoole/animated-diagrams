@@ -15,7 +15,8 @@ public class SidebarStateManualTests
         // Arrange
         var pensService = new PensService();
         var settingsService = new SettingsService(new DummyStorage());
-        var editor = new PathEditorState(pensService, settingsService);
+        var undoRedoservice = new UndoRedoService();
+        var editor = new PathEditorState(pensService, settingsService, undoRedoservice);
         var service = new SvgFileService(editor);
         var projectDir = AppContext.BaseDirectory;
         while (!Directory.Exists(Path.Combine(projectDir, "testData")))

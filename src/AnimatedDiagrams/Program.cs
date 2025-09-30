@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using AnimatedDiagrams;
 using AnimatedDiagrams.Services;
+using Microsoft.JSInterop;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
@@ -12,10 +13,12 @@ builder.Services.AddSingleton<PensService>();
 builder.Services.AddSingleton<PathEditorState>(
     sp => new PathEditorState(
         sp.GetRequiredService<PensService>(),
-        sp.GetRequiredService<SettingsService>()));
+        sp.GetRequiredService<SettingsService>(),
+        sp.GetRequiredService<UndoRedoService>()));
 builder.Services.AddSingleton<StyleRuleService>();
 builder.Services.AddSingleton<SettingsService>();
-builder.Services.AddSingleton<UndoRedoService>();
+builder.Services.AddSingleton<UndoRedoService>(sp =>
+    new UndoRedoService(sp.GetRequiredService<IJSRuntime>()));
 builder.Services.AddSingleton<SvgFileService>();
 builder.Services.AddSingleton<BrowserLocalStorage>();
 builder.Services.AddSingleton<ILocalStorage, BrowserLocalStorage>();

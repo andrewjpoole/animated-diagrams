@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Xml.Linq;
-using AnimatedDiagrams.Models;
 using AnimatedDiagrams.Services;
 using Xunit;
 using static AnimatedDiagrams.Tests.ThemeTests;
@@ -23,7 +22,8 @@ namespace AnimatedDiagrams.Tests
 
             var pensService = new PensService();
             var settingsService = new SettingsService(new DummyStorage());
-            var editor = new PathEditorState(pensService, settingsService);
+            var undoRedoservice = new UndoRedoService();
+            var editor = new PathEditorState(pensService, settingsService, undoRedoservice);
             var service = new SvgFileService(editor);
             service.ImportSvg(originalXml);
 

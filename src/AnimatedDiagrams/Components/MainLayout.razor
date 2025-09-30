@@ -37,7 +37,6 @@
 @inject PathEditorState Editor
 @inject PensService PensService
 @inject SettingsService SettingsSvc
-@inject UndoRedoService UndoRedo
 
 @code {
     private bool SidebarExpanded { get; set; } = true;
@@ -65,39 +64,11 @@
         }
         else if (e.CtrlKey && e.Key == "z")
         {
-            var state = UndoRedo.Undo(Editor.Serialize());
-            if (state != null)
-            {
-                // Use CanvasView's restore logic
-                var items = System.Text.Json.JsonSerializer.Deserialize<List<AnimatedDiagrams.Models.PathItem>>(state);
-                if (items != null)
-                {
-                    Editor.Items.Clear();
-                    foreach (var item in items)
-                    {
-                        Editor.Add(item);
-                    }
-                    Editor.MarkSaved();
-                }
-            }
+           Editor.Undo();
         }
         else if (e.CtrlKey && (e.Key == "y" || (e.ShiftKey && e.Key == "Z")))
         {
-            var state = UndoRedo.Redo(Editor.Serialize());
-            if (state != null)
-            {
-                // Use CanvasView's restore logic
-                var items = System.Text.Json.JsonSerializer.Deserialize<List<AnimatedDiagrams.Models.PathItem>>(state);
-                if (items != null)
-                {
-                    Editor.Items.Clear();
-                    foreach (var item in items)
-                    {
-                        Editor.Add(item);
-                    }
-                    Editor.MarkSaved();
-                }
-            }
+            Editor.Redo();
         }
         // Zoom in: '=' or '+' (no Ctrl required)
         else if (e.Key == "=" || e.Key == "+")

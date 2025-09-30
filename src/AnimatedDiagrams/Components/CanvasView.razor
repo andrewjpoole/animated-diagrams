@@ -5,19 +5,35 @@
 @inject PathEditorState Editor
 @inject SettingsService SettingsSvc
 @inject PensService PensService
+@inject IJSRuntime JS
 
 <div class="canvas-wrapper" tabindex="0" @ref="_canvasWrapper" autofocus @onwheel="OnWheel"
     style="background:@CanvasBgColor">
     <div class="canvas-toolbar">
     
     <button class="app-btn" 
-        @onclick="OnToggleModeClick" @onpointerdown:stopPropagation @onpointerup:stopPropagation @onmousedown:stopPropagation
+        @onclick="OnToggleModeClick" 
+        @onpointerdown:stopPropagation @onpointerup:stopPropagation @onmousedown:stopPropagation
         title="Toggle between modes: drawing (keyboard shortcut: D) and select (keyboard shortcut: S)"
         >Mode: @(Editor.Mode == EditorMode.Drawing ? "Draw" : Editor.Mode == EditorMode.Select ? "Select" : "Animation")</button>
-    <button class="app-btn" @onclick="Undo" @onpointerdown:stopPropagation @onpointerup:stopPropagation @onmousedown:stopPropagation disabled="!UndoRedo.CanUndo">Undo</button>
-    <button class="app-btn" @onclick="Redo" @onpointerdown:stopPropagation @onpointerup:stopPropagation @onmousedown:stopPropagation disabled="!UndoRedo.CanRedo">Redo</button>
-    <button class="app-btn" @onclick="DeleteSelectedPaths" @onpointerdown:stopPropagation @onpointerup:stopPropagation @onmousedown:stopPropagation disabled="@(Editor.SelectedItems.Count == 0)" title="Delete selected paths">Delete</button>
-    <button class="app-btn" @onclick="DuplicateSelectedPaths" @onpointerdown:stopPropagation @onpointerup:stopPropagation @onmousedown:stopPropagation disabled="@(Editor.SelectedItems.Count == 0)" title="Duplicate selected paths">Duplicate</button>
+    <button class="app-btn" 
+        @onclick="Undo" 
+        @onpointerdown:stopPropagation @onpointerup:stopPropagation @onmousedown:stopPropagation 
+        title="Undo @(Editor.UndoRedo.PeekUndoOperation() ?? "-")"
+        >Undo
+    </button>
+    <button class="app-btn" 
+        @onclick="Redo" 
+        @onpointerdown:stopPropagation @onpointerup:stopPropagation @onmousedown:stopPropagation 
+        title="Redo @(Editor.UndoRedo.PeekRedoOperation() ?? "-")"
+        >Redo
+    </button>
+    <button class="app-btn" @onclick="DeleteSelectedPaths" 
+    @onpointerdown:stopPropagation @onpointerup:stopPropagation @onmousedown:stopPropagation disabled="@(Editor.SelectedItems.Count == 0)" title="Delete selected paths"
+    >Delete</button>
+    <button class="app-btn" @onclick="DuplicateSelectedPaths" 
+    @onpointerdown:stopPropagation @onpointerup:stopPropagation @onmousedown:stopPropagation disabled="@(Editor.SelectedItems.Count == 0)" title="Duplicate selected paths"
+    >Duplicate</button>
     
         <span>Zoom: @Editor.Zoom.ToString("0.00")</span>
     @if (Editor.Mode == EditorMode.Drawing && PensService.ActivePen != null)
@@ -153,13 +169,12 @@
 </div>
 
 @code {
-    // Cancellation for drag-select selection logic
-    private System.Threading.CancellationTokenSource? _dragSelectCts;
+    
+    //private System.Threading.CancellationTokenSource? _dragSelectCts;
     private Dictionary<SvgCircleItem, (double cx, double cy)>? _dragMoveOriginalCircles;
     private ElementReference _svg;
     private ElementReference _canvasWrapper;
-    [Inject] UndoRedoService UndoRedo { get; set; } = default!;
-    [Inject] IJSRuntime JS { get; set; } = default!;
+    
     private SvgPathItem? _activePath;
     private List<(double x, double y)> _points = new();
     private bool _panning;
@@ -174,7 +189,6 @@
     private Dictionary<SvgPathItem, string>? _dragMoveOriginalD;
     private bool _pendingCircle = false;
 
-    // Throttle drag-select selection logic
     private DateTime? _lastSelectionUpdate = null;
     
     private IEnumerable<(Node node, bool isControl)> SelectedPathNodesWithType
@@ -198,37 +212,9 @@
         StateHasChanged();
     }
 
-    void Undo()
-    {
-        var state = UndoRedo.Undo(Editor.Serialize());
-        if (state != null) Restore(state);
-    }
+    void Undo() => Editor.Undo();
 
-    void Redo()
-    {
-        var state = UndoRedo.Redo(Editor.Serialize());
-        if (state != null) Restore(state);
-    }
-
-    void Restore(string json)
-    {
-        try
-        {
-            var items = System.Text.Json.JsonSerializer.Deserialize<List<PathItem>>(json);
-            if (items != null)
-            {
-                Editor.Items.Clear();
-                foreach (var item in items)
-                {
-                    Editor.Add(item);
-                }
-                Editor.MarkSaved();
-            }
-        }
-        catch { }
-    }
-
-    string StateSnapshot() => Editor.Serialize();
+    void Redo() => Editor.Redo();
 
     string CanvasBgColor => (SettingsSvc.EffectiveTheme == ThemeMode.Dark) ? SettingsSvc.Settings.DarkCanvasColor : SettingsSvc.Settings.LightCanvasColor;
 
@@ -652,18 +638,13 @@
             // Update bounds and cache for all moved paths
             if (_dragMoveOriginalD != null)
             {
-                foreach (var path in _dragMoveOriginalD.Keys)
-                {
-                    path.Bounds = Path.GetBounds(path.D);
-                    Editor.LocationCache?.AddOrUpdate(path);
-                }
+                Editor.FinalizeMovePaths(_dragMoveOriginalD, $"move {_dragMoveOriginalD.Count} items");
             }
             _dragMovingPaths = false;
             _dragMoveStart = null;
             _dragMoveOriginalD = null;
             _dragMoveOriginalCircles = null;
             // Push state for undo/redo
-            UndoRedo.PushState(StateSnapshot());
             StateHasChanged();
             return;
         }
@@ -680,8 +661,7 @@
                 Fill = pen?.Stroke ?? "#000",
                 Opacity = pen?.Opacity ?? 1.0
             };
-            Editor.Add(circle);
-            UndoRedo.PushState(StateSnapshot());
+            Editor.Add(circle, "draw circle");
             StateHasChanged();
             _activePath = null;
             _pendingCircle = false;
@@ -700,8 +680,7 @@
             _activePath.D = SmoothingStrategies.BuildPath(_points, SettingsSvc.Settings.SmoothingStrategy, step);
             _activePath.Bounds = Path.GetBounds(_activePath.D);
             Editor.LocationCache?.AddOrUpdate(_activePath);
-            Editor.Add(_activePath);
-            UndoRedo.PushState(StateSnapshot());
+            Editor.Add(_activePath, "draw path");
             _activePath = null;
         }
         _pendingCircle = false;
@@ -799,7 +778,7 @@
         // Insert new items just below originals
         if (newItems.Count > 0)
         {
-            Editor.Items.InsertRange(insertIndex, newItems);
+            Editor.InsertRange(insertIndex, newItems, $"duplicate {newItems.Count} items");
             Editor.SelectMultiple(newItems);
             StateHasChanged();
         }
@@ -846,7 +825,10 @@
         PensService.Changed -= StateHasChanged;
     }
 
-    public void DeleteSelectedPaths() => Editor.DeleteSelected();
+    public void DeleteSelectedPaths()
+    {
+    Editor.DeleteSelected();
+    }
 
     public void DebugAction()
     {

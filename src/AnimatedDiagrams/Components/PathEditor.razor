@@ -2,8 +2,7 @@
 @using AnimatedDiagrams.Models
 @using AnimatedDiagrams.Services
 @inject PathEditorState EditorState
-@inject SvgFileService Svg
-
+@inject SvgFileService SvgFileService
 
 
 <div class="path-editor" style="display:flex;flex-direction:column;height:calc(100% - 12px);min-height:0;">
@@ -280,7 +279,7 @@
             var text = await files.InvokeAsync<string>("readFileText", _fileInput);
             if (!string.IsNullOrWhiteSpace(text))
             {
-                Svg.ImportSvg(text);
+                SvgFileService.ImportSvg(text);
                 _exportMessage = $"Imported SVG ({text.Length} chars)";
             }
             else
@@ -309,7 +308,7 @@
             await InvokeAsync(StateHasChanged);
             return;
         }
-        var xml = Svg.ExportSvg();
+        var xml = SvgFileService.ExportSvg();
         try
         {
             var files = await JS.InvokeAsync<IJSObjectReference>("import", "./exportInterop.js");

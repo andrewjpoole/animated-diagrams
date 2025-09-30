@@ -48,16 +48,16 @@ public class SidebarStatePlaywrightTests : PlaywrightTestBase
         await _page.EvaluateAsync("localStorage.setItem('sidebar_Style Rules_height', '555')");
         await _page.ReloadAsync();
         // Check that Paths section is collapsed and Style Rules height is respected
-    // Wait for sidebar sections to exist after reload
-    await _page.WaitForSelectorAsync(".sidebar-section:has(.section-header:text('Paths'))");
-    await _page.WaitForSelectorAsync(".sidebar-section:has(.section-header:text('Style Rules'))");
-    var pathsSection = await _page.QuerySelectorAsync(".sidebar-section:has(.section-header:text('Paths'))");
-    var styleRulesSection = await _page.QuerySelectorAsync(".sidebar-section:has(.section-header:text('Style Rules'))");
-    Assert.NotNull(pathsSection);
-    Assert.NotNull(styleRulesSection);
-    var isCollapsed = await pathsSection.EvaluateAsync<bool>("el => el.classList.contains('collapsed')");
-    var styleRulesHeight = await styleRulesSection.EvaluateAsync<string>("el => el.style.height");
-    Assert.True(isCollapsed);
-    Assert.Contains("555px", styleRulesHeight);
+        // Wait for sidebar sections to exist after reload
+        await _page.WaitForSelectorAsync(".sidebar-section:has(.section-header:text('Paths'))");
+        await _page.WaitForSelectorAsync(".sidebar-section:has(.section-header:text('Style Rules'))");
+        var pathsSection = await _page.QuerySelectorAsync(".sidebar-section:has(.section-header:text('Paths'))");
+        var styleRulesSection = await _page.QuerySelectorAsync(".sidebar-section:has(.section-header:text('Style Rules'))");
+        Assert.NotNull(pathsSection);
+        Assert.NotNull(styleRulesSection);
+        var isCollapsed = await pathsSection.EvaluateAsync<bool>("el => el.classList.contains('collapsed')");
+        var styleRulesHeight = await styleRulesSection.EvaluateAsync<string>("el => el.style.height");
+        Assert.True(isCollapsed);
+        Assert.Contains("555px", styleRulesHeight);
     }
 }

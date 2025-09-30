@@ -14,7 +14,8 @@ public class SvgImportTests
     {
         var pensService = new PensService();
         var settingsService = new SettingsService(new DummyStorage());
-        var editor = new PathEditorState(pensService, settingsService);
+        var undoRedoservice = new UndoRedoService();
+        var editor = new PathEditorState(pensService, settingsService, undoRedoservice);
         var service = new SvgFileService(editor);
         var projectDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", ".."));
         var svgPath = Path.Combine(projectDir, "testData", "concepts.svg");

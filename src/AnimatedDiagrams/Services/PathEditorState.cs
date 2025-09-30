@@ -1,9 +1,10 @@
-namespace AnimatedDiagrams.Services;
 
 using System;
 using System.Collections.Generic;
 using AnimatedDiagrams.Models;
 using AnimatedDiagrams.PathGeometry;
+
+namespace AnimatedDiagrams.Services;
 
 public enum EditorMode
 {
@@ -14,7 +15,56 @@ public enum EditorMode
 
 public class PathEditorState
 {
+    public string DiagramName { get; set; } = "animated-diagram";
+    public PensService PensSvc { get; }
+    public SettingsService SettingsService { get; private set; }
     public StyleRuleService? StyleRuleService { get; set; }
+    public ItemLocationCache? LocationCache { get; private set; }
+    public UndoRedoService UndoRedo { get; set; }
+    public event Action? Changed;
+    public List<PathItem> Items { get; } = new();
+    public bool IsDirty { get; private set; }
+    public List<PathItem> SelectedItems { get; private set; } = new();
+    public bool EditingSelectedPaths { get; set; } = false;
+    public EditorMode Mode { get; private set; } = EditorMode.Drawing;
+    public bool ModeWhichShoudIgnorePointerEvents { get { return Mode == EditorMode.Animation; } }
+    public double Zoom { get; private set; } = 1.0;
+    public double OffsetX { get; private set; } = 0;
+    public double OffsetY { get; private set; } = 0;
+
+    /// <summary>
+    /// Imports a set of SVG items and comments, updates the editor state, and pushes undo/redo state.
+    /// </summary>
+    public void ImportSvgItems(IEnumerable<PathItem> items, IEnumerable<System.Xml.Linq.XComment> comments, double zoom, double offsetX, double offsetY, int gridX, int gridY, double canvasW, double canvasH)
+    {
+        New();
+        InitLocationCache(gridX, gridY, canvasW, canvasH);
+        Items.AddRange(items);
+        LocationCache?.BuildBulk(items);
+        foreach (var comment in comments)
+        {
+            ParseComment(comment.Value);
+        }
+        if (Items.Count > 0)
+        {
+            SetViewport(zoom, offsetX, offsetY);
+        }
+        MarkSaved();
+        UndoRedo.PushState(UndoRedo.SerializeSnapshot(Items, "Import SVG"));
+    }
+
+    /// <summary>
+    /// Finalizes a move operation for multiple paths, updating bounds and cache, and pushing undo state.
+    /// </summary>
+    public void FinalizeMovePaths(Dictionary<SvgPathItem, string> originalD, string operation)
+    {
+        UndoRedo.PushState(UndoRedo.SerializeSnapshot(Items, operation));
+        foreach (var path in originalD.Keys)
+        {
+            path.Bounds = AnimatedDiagrams.PathGeometry.Path.GetBounds(path.D);
+            LocationCache?.AddOrUpdate(path);
+        }
+    }
 
     /// <summary>
     /// Applies all style rules to all items in the editor.
@@ -28,8 +78,6 @@ public class PathEditorState
         }
         Changed?.Invoke();
     }
-    // Item location cache for fast selection
-    public ItemLocationCache? LocationCache { get; private set; }
 
     /// <summary>
     /// The index in the Items list where new paths will be inserted. Defaults to end of list.
@@ -70,14 +118,14 @@ public class PathEditorState
         foreach (var item in Items)
             LocationCache.AddOrUpdate(item);
     }
-    public string DiagramName { get; set; } = "animated-diagram";
-    public PensService PensSvc { get; }
-    private SettingsService settingsService;
 
-    public PathEditorState(PensService pensSvc, SettingsService settingsService)
+
+
+    public PathEditorState(PensService pensSvc, SettingsService settingsService, UndoRedoService undoRedo)
     {
         PensSvc = pensSvc;
-        this.settingsService = settingsService;
+        SettingsService = settingsService;
+        UndoRedo = undoRedo;
     }
 
     /// <summary>
@@ -168,20 +216,10 @@ public class PathEditorState
         Changed?.Invoke();
     }
 
-    public event Action? Changed;
     public void NotifyStateChanged()
     {
         Changed?.Invoke();
     }
-    public List<PathItem> Items { get; } = new();
-    public bool IsDirty { get; private set; }
-    public List<PathItem> SelectedItems { get; private set; } = new();
-    public bool EditingSelectedPaths { get; set; } = false;
-    public EditorMode Mode { get; private set; } = EditorMode.Drawing;
-    public bool ModeWhichShoudIgnorePointerEvents { get { return Mode == EditorMode.Animation; } }
-    public double Zoom { get; private set; } = 1.0;
-    public double OffsetX { get; private set; } = 0;
-    public double OffsetY { get; private set; } = 0;
 
     public void SetMode(EditorMode mode)
     {
@@ -216,7 +254,6 @@ public class PathEditorState
         Changed?.Invoke();
     }
 
-    public string Serialize() => System.Text.Json.JsonSerializer.Serialize(Items);
 
     public void New()
     {
@@ -225,7 +262,6 @@ public class PathEditorState
         SelectedItems.Clear();
         Changed?.Invoke();
     }
-
 
     public void Add(PathItem item)
     {
@@ -237,14 +273,37 @@ public class PathEditorState
             p.Bounds = AnimatedDiagrams.PathGeometry.Path.GetBounds(p.D);
         }
         LocationCache?.AddOrUpdate(item);
-        // If insert position is not at end, move it after the inserted item
         if (InsertPosition >= 0) InsertPosition++;
         MarkDirty();
     }
 
+    public void Add(PathItem item, string? operation = null)
+    {
+        int idx = GetInsertIndex();
+        if (idx < 0 || idx > Items.Count) idx = Items.Count;
+        Items.Insert(idx, item);
+        if (item is SvgPathItem p)
+        {
+            p.Bounds = PathGeometry.Path.GetBounds(p.D);
+        }
+        LocationCache?.AddOrUpdate(item);
+        if (InsertPosition >= 0) InsertPosition++;
+        MarkDirty();
+        if (!string.IsNullOrEmpty(operation))
+            UndoRedo.PushState(UndoRedo.SerializeSnapshot(Items, operation));
+    }
+
+    public void InsertRange(int index, IEnumerable<PathItem> items, string? operation = null)
+    {
+        Items.InsertRange(index, items);
+        MarkDirty();
+        if (!string.IsNullOrEmpty(operation))
+            UndoRedo.PushState(UndoRedo.SerializeSnapshot(Items, operation));
+    }    
+
     public void Add(SvgPathItem item)
     {
-        item.Bounds = AnimatedDiagrams.PathGeometry.Path.GetBounds(item.D);
+        item.Bounds = PathGeometry.Path.GetBounds(item.D);
         int idx = GetInsertIndex();
         if (idx < 0 || idx > Items.Count) idx = Items.Count;
         Items.Insert(idx, item);
@@ -288,6 +347,8 @@ public class PathEditorState
 
         foreach (var item in SelectedItems)
             Delete(item);
+            
+        UndoRedo.PushState(UndoRedo.SerializeSnapshot(Items, "delete"));
     }
 
     public void Move(PathItem item, int delta)
@@ -388,14 +449,14 @@ public class PathEditorState
         }
         Changed?.Invoke();
     }
-    
+
     public void SimplifySelectedItems()
     {
         foreach (var item in SelectedItems.OfType<SvgPathItem>())
         {
             var points = PathData.ToPoints(item.D);
             // Use the smoothing strategy from system settings
-            var strategy = settingsService.Settings.SmoothingStrategy;
+            var strategy = SettingsService.Settings.SmoothingStrategy;
             var simplified = SmoothingStrategies.BuildPath(points, strategy);
             // Only update if result is valid (starts with M, has at least one segment, not empty)
             if (!string.IsNullOrWhiteSpace(simplified) && simplified.StartsWith("M ") && simplified.Length > 10)
@@ -410,5 +471,63 @@ public class PathEditorState
             }
         }
         Changed?.Invoke();
+    }
+
+    public void Undo()
+    {
+        Console.WriteLine("Undo");
+        var state = UndoRedo.Undo(UndoRedo.SerializeSnapshot(Items, "undo"));
+        if (state != null)
+        {
+            var snapshot = UndoRedo.DeserializeSnapshot(state);
+            if (snapshot?.Items != null)
+            {
+                Items.Clear();
+                foreach (var item in snapshot.Items)
+                {
+                    Add(item);
+                }
+                MarkSaved();
+                NotifyStateChanged();
+            }
+        }
+    }
+
+    public void Redo()
+    {
+        Console.WriteLine("Redo");
+        var state = UndoRedo.Redo(UndoRedo.SerializeSnapshot(Items, "redo"));
+        if (state != null)
+        {
+            var snapshot = UndoRedo.DeserializeSnapshot(state);
+            if (snapshot?.Items != null)
+            {
+                Items.Clear();
+                foreach (var item in snapshot.Items)
+                {
+                    Add(item);
+                }
+                MarkSaved();
+                NotifyStateChanged();
+            }
+        }
+    }
+
+    private void ParseComment(string value)
+    {
+        if (value.StartsWith("Pause:", StringComparison.OrdinalIgnoreCase))
+        {
+            if (int.TryParse(value.Substring(6), out var ms))
+            {
+                Add(new PauseHintItem { Milliseconds = ms });
+            }
+        }
+        else if (value.StartsWith("Speed:", StringComparison.OrdinalIgnoreCase))
+        {
+            if (double.TryParse(value.Substring(6), out var mult))
+            {
+                Add(new SpeedHintItem { Multiplier = mult });
+            }
+        }
     }
 }

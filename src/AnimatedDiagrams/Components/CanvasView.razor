@@ -19,13 +19,13 @@
     <button class="app-btn" 
         @onclick="Undo" 
         @onpointerdown:stopPropagation @onpointerup:stopPropagation @onmousedown:stopPropagation 
-        title="Undo @(Editor.UndoRedo.PeekUndoOperation() ?? "-")"
+        title="Undo @(Editor.NextUndoHint())"
         >Undo
     </button>
     <button class="app-btn" 
         @onclick="Redo" 
         @onpointerdown:stopPropagation @onpointerup:stopPropagation @onmousedown:stopPropagation 
-        title="Redo @(Editor.UndoRedo.PeekRedoOperation() ?? "-")"
+        title="Redo @(Editor.NextRedoHint())"
         >Redo
     </button>
     <button class="app-btn" @onclick="DeleteSelectedPaths" 

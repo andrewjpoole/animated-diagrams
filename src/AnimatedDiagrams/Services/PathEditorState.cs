@@ -1,6 +1,3 @@
-
-using System;
-using System.Collections.Generic;
 using AnimatedDiagrams.Models;
 using AnimatedDiagrams.PathGeometry;
 
@@ -20,7 +17,7 @@ public class PathEditorState
     public SettingsService SettingsService { get; private set; }
     public StyleRuleService? StyleRuleService { get; set; }
     public ItemLocationCache? LocationCache { get; private set; }
-    public UndoRedoService UndoRedo { get; set; }
+    private UndoRedoService UndoRedo { get; set; }
     public event Action? Changed;
     public List<PathItem> Items { get; } = new();
     public bool IsDirty { get; private set; }
@@ -347,7 +344,7 @@ public class PathEditorState
 
         foreach (var item in SelectedItems)
             Delete(item);
-            
+
         UndoRedo.PushState(UndoRedo.SerializeSnapshot(Items, "delete"));
     }
 
@@ -512,6 +509,10 @@ public class PathEditorState
             }
         }
     }
+
+    public string NextUndoHint() => UndoRedo.PeekUndoOperation() ?? string.Empty;
+
+    public string NextRedoHint() => UndoRedo.PeekRedoOperation() ?? string.Empty;
 
     private void ParseComment(string value)
     {

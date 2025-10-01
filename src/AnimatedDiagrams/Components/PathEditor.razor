@@ -1,6 +1,7 @@
 @using AnimatedDiagrams.Components
 @using AnimatedDiagrams.Models
 @using AnimatedDiagrams.Services
+@using System
 @inject PathEditorState EditorState
 @inject SvgFileService SvgFileService
 
@@ -35,17 +36,19 @@
                 if (i < EditorState.Items.Count)
                 {
                     var item = EditorState.Items[i];
-                    var isDropTarget = (_dragTargetIndex.HasValue && _dragTargetIndex.Value == i);
-                    <li class="item @(item.Selected?"sel":null) @(isDropTarget?"drop-target":null)"
+                    var isDropTarget = (!string.IsNullOrEmpty(_dragTargetItemId) && _dragTargetItemId == item.Id);
+                    var isBeingDragged = (!string.IsNullOrEmpty(_dragSourceItemId) && _dragSourceItemId == item.Id);
+                    <li class="item @(item.Selected?"sel":null) @(isDropTarget?"drop-target":null) @(isBeingDragged?"being-dragged":null)"
                         id="pathlist-@item.Id"
                         @onmousedown="(e) => Select(item, e)"
                         tabindex="0"
                         style="@(item.Selected ? "background:var(--active-bg);" : null)"
                         draggable="@((item is PauseHintItem p && _editingPauseId == p.Id) || (item is SpeedHintItem s && _editingSpeedId == s.Id) ? "false" : "true")"
-                        @ondragstart="(e) => OnDragStart(e, i)"
-                        @ondragover:preventDefault="true" @ondragover="(e) => OnDragOver(e, i)"
-                        @ondragenter:preventDefault="true" @ondragenter="(e) => OnDragEnter(e, i)"
-                        @ondrop:preventDefault="true" @ondrop="(e) => OnDrop(e, i)"
+                        @ondragstart="(e) => OnDragStart(e, item)"
+                        @ondragover:preventDefault="true" @ondragover="(e) => OnDragOver(e, item)"
+                        @ondragenter:preventDefault="true" @ondragenter="(e) => OnDragEnter(e, item)"
+                        @ondragleave:preventDefault="true" @ondragleave="(e) => OnDragLeave(e, item)"
+                        @ondrop:preventDefault="true" @ondrop="(e) => OnDrop(e, item)"
                         @ondragend="OnDragEnd"
                         title="Drag to re-order...">
                         @if (item is PauseHintItem pause)
@@ -337,53 +340,93 @@
         }
     }
 
-    int? _dragSourceIndex = null;
-    int? _dragTargetIndex = null;
+    string? _dragSourceItemId = null;
+    string? _dragTargetItemId = null;
 
-    void OnDrop(DragEventArgs e, int index)
+    void OnDrop(DragEventArgs e, PathItem item)
     {        
-        if (_dragSourceIndex.HasValue && _dragTargetIndex.HasValue)
+        Console.WriteLine($"[PathEditor] OnDrop: item={item.Id}, source={_dragSourceItemId}, target={_dragTargetItemId}");
+        if (!string.IsNullOrEmpty(_dragSourceItemId) && !string.IsNullOrEmpty(_dragTargetItemId))
         {
-            var selected = EditorState.SelectedItems.ToList();
-            int sourceIdx = _dragSourceIndex.Value;
-            int targetIdx = _dragTargetIndex.Value;
-            foreach (var item in selected)
+            var sourceItem = EditorState.Items.FirstOrDefault(x => x.Id == _dragSourceItemId);
+            var targetItem = EditorState.Items.FirstOrDefault(x => x.Id == _dragTargetItemId);
+            
+            if (sourceItem != null && targetItem != null)
             {
-                int originalIndex = sourceIdx;
-                int delta = targetIdx - originalIndex;
-                EditorState.Move(item, delta);
+                var sourceIdx = EditorState.Items.IndexOf(sourceItem);
+                var targetIdx = EditorState.Items.IndexOf(targetItem);
+                Console.WriteLine($"[PathEditor] Moving item from {sourceIdx} to {targetIdx}");
+                
+                var selected = EditorState.SelectedItems.ToList();
+                foreach (var selectedItem in selected)
+                {
+                    int delta = targetIdx - sourceIdx;
+                    EditorState.Move(selectedItem, delta);
+                }
+                EditorState.MarkSaved();
+                StateHasChanged();
             }
-            EditorState.MarkSaved();
-            StateHasChanged();
         }
-        _dragSourceIndex = null;
-        _dragTargetIndex = null;
+        _dragSourceItemId = null;
+        _dragTargetItemId = null;
     }
 
-    void OnDragStart(DragEventArgs e, int index)
+    void OnDragStart(DragEventArgs e, PathItem item)
     {
-        _dragSourceIndex = index;
+        Console.WriteLine($"[PathEditor] OnDragStart: item={item.Id}");
+        _dragSourceItemId = item.Id;
+        _dragTargetItemId = null; // Clear any previous target
+        Console.WriteLine($"[PathEditor] Source set to: {_dragSourceItemId}");
         e.DataTransfer.EffectAllowed = "move";
     }
 
-    void OnDragOver(DragEventArgs e, int index)
+    void OnDragOver(DragEventArgs e, PathItem item)
     {
-        if (_dragSourceIndex != index)
-        {
-            _dragTargetIndex = index;
-        }
+        Console.WriteLine($"[PathEditor] OnDragOver: item={item.Id}, source={_dragSourceItemId}, target={_dragTargetItemId}");
         
+        if (!string.IsNullOrEmpty(_dragSourceItemId))
+        {
+            if (_dragSourceItemId != item.Id)
+            {
+                Console.WriteLine($"[PathEditor] OnDragOver: Valid target {item.Id}");
+                if (_dragTargetItemId != item.Id)
+                {
+                    _dragTargetItemId = item.Id;
+                    StateHasChanged();
+                }
+                e.DataTransfer.DropEffect = "move";
+            }
+            else
+            {
+                Console.WriteLine($"[PathEditor] OnDragOver: Dragging over self");
+                e.DataTransfer.DropEffect = "none";
+            }
+        }
     }
 
-    void OnDragEnter(DragEventArgs e, int index)
+    void OnDragEnter(DragEventArgs e, PathItem item)
     {
-        _dragTargetIndex = index;
+        Console.WriteLine($"[PathEditor] OnDragEnter: item={item.Id}, source={_dragSourceItemId}");
+        if (!string.IsNullOrEmpty(_dragSourceItemId) && _dragSourceItemId != item.Id)
+        {
+            Console.WriteLine($"[PathEditor] DragEnter: Valid target {item.Id}");
+            _dragTargetItemId = item.Id;
+            StateHasChanged();
+        }
+    }
+
+    void OnDragLeave(DragEventArgs e, PathItem item)
+    {
+        Console.WriteLine($"[PathEditor] OnDragLeave: item={item.Id}, target={_dragTargetItemId}");
+        // Don't clear immediately - let other events handle it
     }
 
     void OnDragEnd()
     {
-        _dragSourceIndex = null;
-        _dragTargetIndex = null;
+        Console.WriteLine($"[PathEditor] OnDragEnd: source={_dragSourceItemId}, target={_dragTargetItemId}");
+        _dragSourceItemId = null;
+        _dragTargetItemId = null;
+        StateHasChanged();
     }
     // --- Insert Position Marker logic ---
     int? _insertMarkerDragSource = null;

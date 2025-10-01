@@ -30,12 +30,13 @@
 .path-editor li.drop-target {
 	outline: 2px dashed #f7c600;
 	box-shadow: 0 0 0 2px #f7c60033;
+	background-color: #2a2a0a !important;
 	z-index: 2;
+	transform: scale(1.02);
 }
-.path-editor li.drop-target {
-	outline: 2px dashed #f7c600;
-	box-shadow: 0 0 0 2px #f7c60033;
-	z-index: 2;
+.path-editor li.being-dragged {
+	opacity: 0.5;
+	transform: rotate(2deg);
 }
 .diagram-canvas .glow {
 	filter: drop-shadow(0 0 6px #ff0);
